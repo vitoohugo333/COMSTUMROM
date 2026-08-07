@@ -7,6 +7,7 @@ const excludedDirectories = new Set(['.git', 'node_modules']);
 const canonicalFiles = [
   'AGENTS.md',
   'SKILLS.md',
+  'MOBILE_WORKFLOW.md',
   'TESTING_RULES.md',
   'ADB_RULES.md',
   'ROM_SAFETY_RULES.md',
