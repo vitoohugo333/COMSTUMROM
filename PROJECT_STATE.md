@@ -1,7 +1,7 @@
 # Estado oficial — CUSTOMROM TAYTECH (`main`)
 
 **Atualizado em:** 2026-08-07, horário de Brasília  
-**Estado:** fundação de governança criada; nenhuma otimização ADB aplicada ainda por este projeto.  
+**Estado:** fundação de governança e Central Oficial concluídas; `Bloco 01 — Baseline ADB de desempenho` aberto. Nenhuma otimização ADB foi aplicada ainda por este projeto.  
 **Papel da `main`:** governança canônica, documentação, evidência e ferramentas seguras. Não existe branch funcional separada neste checkpoint.
 
 ## Objetivo atual
@@ -15,6 +15,22 @@ Começar pela camada de menor risco e maior retorno: **diagnóstico e otimizaç�
 - estado de entrada desta fundação: repositório vazio;
 - branch nova: não criada;
 - publicação/deploy: não aplicável.
+
+## Governança criada
+
+Arquivos canônicos:
+
+- `START_HERE.md`;
+- `AGENTS.md`;
+- `SKILLS.md`;
+- `TESTING_RULES.md`;
+- `ADB_RULES.md`;
+- `ROM_SAFETY_RULES.md`;
+- `LEARNING_RULES.md`;
+- `PROJECT_STATE.md`;
+- `ci/branch-policy.json`;
+- `scripts/ci/verify-repository.mjs`;
+- `.github/workflows/ci-autonomous.yml`.
 
 ## Codex Engineering Guardrails
 
@@ -50,7 +66,7 @@ A auditoria inicial classificou os `.iap` recebidos como firmware da camada CAN/
 
 - o proprietário informou que o Wireless ADB da central funciona;
 - o celular/tablet de controle está conectado à central pelo Bugjaeger;
-- **nenhum comando de diagnóstico deste novo bloco foi executado ainda sob a governança criada aqui**;
+- **nenhum comando de diagnóstico do Bloco 01 foi executado ainda**;
 - desempenho atual relatado: lentidão perceptível mesmo com uso leve; causa ainda não confirmada.
 
 ## Limites vigentes
@@ -61,18 +77,44 @@ A auditoria inicial classificou os `.iap` recebidos como firmware da camada CAN/
 - nenhum root, fastboot, flash, remount, alteração de partição, AVB, MCU ou CAN firmware;
 - funções automotivas permanecem protegidas por presunção até mapa de dependências.
 
-## Evidência necessária para o primeiro diagnóstico
-
-Coletar um baseline curto da central em repouso pelo Bugjaeger e usar a saída para decidir o próximo comando, em vez de pedir uma lista extensa de coletas cegas.
-
 ## Notion sync
 
-`PENDENTE` neste ponto da criação do repositório. Deve ser resolvido no mesmo bloco, criando a Central Oficial, Estado, Roadmap, Governança, Handoff, bancos de Blocos/Decisões/Aprendizados e o primeiro bloco ADB.
+**CONCLUÍDO neste checkpoint.**
+
+Central criada: `CUSTOMROM TAYTECH — Central Oficial do Projeto`.
+
+Estrutura criada:
+
+- `00 — Instrução Operacional`;
+- `01 — Estado Oficial`;
+- `02 — Roadmap Mestre`;
+- `03 — Governança e Autoridade`;
+- `04 — Handoff para Novo Chat`;
+- `05 — Registro de Alterações do Notion`;
+- banco `Blocos de Execução`;
+- banco `Decisões`;
+- banco `Aprendizados`;
+- `Fundação — Governança e Central Oficial` marcada como PASS;
+- `Bloco 01 — Baseline ADB de desempenho` em execução;
+- decisões `CR-001` a `CR-004` registradas.
+
+## Evidência necessária para o primeiro diagnóstico
+
+O Bloco 01 começa com uma coleta curta, em repouso, e para para interpretação antes de ampliar comandos:
+
+```sh
+getprop ro.hardware
+getprop ro.board.platform
+getprop ro.product.board
+cat /proc/meminfo
+cat /proc/swaps
+```
 
 ## Aprendizado
 
-Nenhum aprendizado permanente novo do aparelho neste bootstrap; a governança foi adaptada das proteções maduras do VETTA, incluindo Guardrails contínuo, sincronização GitHub ↔ Notion, aprendizado fechado e verificação de governança sem versão histórica fixa.
+- **Aprendizado fechado de governança:** o CUSTOMROM herdou do VETTA a prevenção contra CI acoplada a uma versão histórica fixa; a regra é marcador de governança válido e, em branches futuras, paridade com a `main`.
+- Nenhum aprendizado permanente novo do aparelho ainda; o baseline ADB ainda não começou.
 
 ## Próximo passo único
 
-Concluir a Central Oficial no Notion e, depois da sincronização, iniciar **Bloco 01 — Baseline ADB de desempenho**, com coleta somente leitura.
+Executar a **Coleta A** do `Bloco 01 — Baseline ADB de desempenho` no Shell do Bugjaeger e analisar o resultado antes de qualquer comando AMARELO.
