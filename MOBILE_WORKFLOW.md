@@ -1,7 +1,17 @@
-<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.1 -->
+<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.2 -->
 # CUSTOMROM TAYTECH — operação pelo celular
 
 Este projeto é operado principalmente pelo celular/tablet. O agente deve reduzir ao mínimo digitação, troca de telas e interpretação técnica exigida do proprietário.
+
+## Prioridade zero — conexão ADB previsível
+
+Antes de qualquer bloco longo de diagnóstico, priorizar uma conexão ADB previsível.
+
+- Se a TayTech estiver usando **Depuração sem fio** com porta dinâmica, tentar primeiro o modo TCP/IP clássico na porta **5555**.
+- No Bugjaeger, a ação preferida é **Commands → Connect through WiFi**, que executa internamente o equivalente a `adb tcpip 5555` no alvo selecionado.
+- Depois, reconectar usando `IP_DA_TAYTECH:5555` e validar com um comando simples no Shell.
+- Considerar essa configuração **temporária até prova de persistência**. Em muitos aparelhos ela dura até reinício, desativação das opções de desenvolvedor ou mudança do modo ADB.
+- Não usar root, remount, `build.prop`, scripts de boot ou alteração de ROM apenas para tornar 5555 permanente nesta fase.
 
 ## Formato obrigatório de qualquer ação prática
 
@@ -27,20 +37,20 @@ Toda instrução executável deve ser entregue nesta ordem:
 - Se for necessário um valor variável, explicar visualmente onde encontrá-lo e fornecer o comando final já montado sempre que possível.
 - Depois de cada bloco, parar para interpretar antes de ampliar a coleta ou aplicar nova mudança.
 
-## Pasta padrão de trabalho ADB
+## Pasta padrão de trabalho ADB nesta TayTech
 
-Enquanto houver acesso de escrita ao armazenamento compartilhado, usar:
+Para esta central, usar explicitamente o armazenamento interno emulado:
 
-`/sdcard/CUSTOMROM/`
+`/storage/emulated/0/CUSTOMROM/`
 
 Subpastas padrão:
 
-- `/sdcard/CUSTOMROM/diagnosticos/` — saídas de leitura, inventários e medições;
-- `/sdcard/CUSTOMROM/backups/` — cópias de segurança permitidas;
-- `/sdcard/CUSTOMROM/logs/` — logs capturados;
-- `/sdcard/CUSTOMROM/experimentos/` — evidências de testes reversíveis autorizados.
+- `/storage/emulated/0/CUSTOMROM/diagnosticos/` — saídas de leitura, inventários e medições;
+- `/storage/emulated/0/CUSTOMROM/backups/` — cópias de segurança permitidas;
+- `/storage/emulated/0/CUSTOMROM/logs/` — logs capturados;
+- `/storage/emulated/0/CUSTOMROM/experimentos/` — evidências de testes reversíveis autorizados.
 
-Criar arquivos nessa pasta não altera ROM, sistema, MCU ou CAN. É apenas armazenamento de evidência no espaço compartilhado do Android. Se a ROM negar escrita nesse caminho, o agente deve adaptar o destino antes de continuar.
+Criar arquivos nessa pasta não altera ROM, sistema, MCU ou CAN. É apenas armazenamento de evidência no espaço compartilhado da própria TayTech quando o Shell remoto está conectado ao aparelho-alvo.
 
 ## Convenção de nomes humanos
 
@@ -81,7 +91,7 @@ Termos técnicos podem aparecer quando necessários, mas sempre acompanhados da 
 comando-pronto
 ```
 
-**Vai salvar em:** `/sdcard/CUSTOMROM/diagnosticos/arquivo_legivel.txt`.
+**Vai salvar em:** `/storage/emulated/0/CUSTOMROM/diagnosticos/arquivo_legivel.txt`.
 
 **Consequência:** só lê informações e grava o relatório; não desativa nem altera nenhum aplicativo.
 
