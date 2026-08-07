@@ -1,4 +1,4 @@
-<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.1 -->
+<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.2 -->
 # CUSTOMROM TAYTECH — índice técnico obrigatório
 
 Este arquivo é o mapa de leitura para qualquer agente. Deve ser lido depois de `AGENTS.md`.
@@ -8,19 +8,20 @@ Este arquivo é o mapa de leitura para qualquer agente. Deve ser lido depois de 
 - `Liste os blocos ativos do CUSTOMROM.`
 - `Leia o bloco X e siga-o.`
 
-Quando um bloco do Notion for citado, ele funciona como roteador operacional. O agente deve recuperar sozinho Central Oficial, Estado Oficial, Roadmap, decisões, aprendizados, códigos `CR-xxx`, branch, fotografia, evidências e regras relacionadas.
+Quando um bloco do Notion for citado, ele funciona como roteador operacional. O agente deve recuperar sozinho Central Oficial, Estado Oficial, Roadmap, decisões, aprendizados, códigos internos, linha de trabalho, fotografia, evidências e regras relacionadas.
 
 ## Sequência obrigatória
 
 1. bloco do Notion citado, quando houver;
 2. `AGENTS.md`;
 3. `SKILLS.md`;
-4. `TESTING_RULES.md`;
-5. `ADB_RULES.md` para diagnóstico/otimização Android;
-6. `ROM_SAFETY_RULES.md` para fronteiras estruturais;
-7. `LEARNING_RULES.md` quando aplicável;
-8. `PROJECT_STATE.md`;
-9. fontes vivas: GitHub + aparelho + ADB/logs.
+4. `MOBILE_WORKFLOW.md` antes de instruir qualquer ação prática ao proprietário;
+5. `TESTING_RULES.md`;
+6. `ADB_RULES.md` para diagnóstico/otimização Android;
+7. `ROM_SAFETY_RULES.md` para fronteiras estruturais;
+8. `LEARNING_RULES.md` quando aplicável;
+9. `PROJECT_STATE.md`;
+10. fontes vivas: GitHub + aparelho + ADB/logs.
 
 ## Arquivos operacionais
 
@@ -28,12 +29,13 @@ Quando um bloco do Notion for citado, ele funciona como roteador operacional. O 
 |---|---|---|
 | Autoridade e escopo | `AGENTS.md` | todo trabalho |
 | Entrada rápida | `START_HERE.md` | novo agente/chat |
+| Operação pelo celular | `MOBILE_WORKFLOW.md` | todo comando, coleta, envio de evidência ou ação prática |
 | Testes e evidência | `TESTING_RULES.md` | todo checkpoint técnico |
 | ADB e debloat | `ADB_RULES.md` | shell, pacotes, processos, RAM/CPU, ajustes |
 | ROM e hardware crítico | `ROM_SAFETY_RULES.md` | root, bootloader, AVB, partições, MCU/CAN, flash |
 | Aprendizado fechado | `LEARNING_RULES.md` | defeito, quase falha, descoberta reutilizável |
-| Estado vivo | `PROJECT_STATE.md` | branch, fotografia, baseline, mudanças e próximo passo |
-| Política da branch | `ci/branch-policy.json` | papel e nível de risco esperado |
+| Estado vivo | `PROJECT_STATE.md` | linha de trabalho, fotografia, baseline, mudanças e próximo passo |
+| Política da linha de trabalho | `ci/branch-policy.json` | papel e nível de risco esperado |
 | Verificação automática | `scripts/ci/verify-repository.mjs` | integridade e governança |
 | Memória operacional | Notion — Central/Blocos/Decisões/Aprendizados | missão, contexto e continuidade |
 
@@ -51,9 +53,9 @@ Falha de catálogo ou descoberta não prova indisponibilidade. Só declarar indi
 
 Se um trecho começou sem Guardrails, ele permanece **ainda não verificado pelo Guardrails** até ser revisado sob a skill correta.
 
-## Regra de consistência entre branches
+## Regra de consistência entre linhas de trabalho
 
-`AGENTS.md`, `SKILLS.md`, `TESTING_RULES.md`, `ADB_RULES.md`, `ROM_SAFETY_RULES.md`, `LEARNING_RULES.md` e `START_HERE.md` são canônicos na `main`.
+`AGENTS.md`, `SKILLS.md`, `MOBILE_WORKFLOW.md`, `TESTING_RULES.md`, `ADB_RULES.md`, `ROM_SAFETY_RULES.md`, `LEARNING_RULES.md` e `START_HERE.md` são canônicos na `main`.
 
 Branches operacionais futuras devem manter cópia idêntica desses arquivos, salvo decisão explícita registrada. `PROJECT_STATE.md` e `ci/branch-policy.json` são específicos da branch.
 
@@ -68,3 +70,5 @@ Antes do próximo bloco funcional, GitHub + `PROJECT_STATE.md` + bloco do Notion
 ## Responsabilidade do agente
 
 O proprietário define objetivo e limites. O agente escolhe a verificação proporcional, interpreta evidência, mantém rollback e resolve referências internas. O proprietário não deve receber uma lista de dependências técnicas para reconstruir contexto já registrado.
+
+Toda ação prática deve chegar já preparada para celular, com local de execução, bloco copiável, consequência, destino do resultado, risco e forma de devolver a evidência.
