@@ -96,7 +96,15 @@ Estrutura criada:
 - banco `Aprendizados`;
 - `Fundação — Governança e Central Oficial` marcada como PASS;
 - `Bloco 01 — Baseline ADB de desempenho` em execução;
-- decisões `CR-001` a `CR-004` registradas.
+- decisões `D-001` a `D-004` registradas;
+- alteração estrutural de memória registrada como `CR-001`.
+
+## Verificação da governança
+
+- criação remota dos arquivos confirmada pelo conector GitHub;
+- fotografia da `main` confirmada pelo histórico remoto;
+- `scripts/ci/verify-repository.mjs` teve sintaxe validada localmente e passou numa simulação determinística do contrato de arquivos, JSON, marcadores e segredo em texto claro;
+- o conector disponível nesta sessão não expôs uma execução `push` do GitHub Actions para confirmação; portanto **não afirmar CI remota verde neste checkpoint**.
 
 ## Evidência necessária para o primeiro diagnóstico
 
