@@ -1,4 +1,4 @@
-<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.1 -->
+<!-- COMSTUMROM_GOVERNANCE_VERSION: 2026-08-07.2 -->
 # CUSTOMROM TAYTECH — regras obrigatórias do projeto
 
 O objetivo do projeto é entender, medir, otimizar e personalizar a multimídia TayTech preservando a capacidade de recuperação e, principalmente, as funções automotivas proprietárias. A primeira fase é **ADB e diagnóstico reversível**. ROM, root, bootloader, AVB, MCU, CAN e flash são fronteiras posteriores e separadas.
@@ -10,9 +10,36 @@ O proprietário opera o projeto principalmente pelo celular/tablet. A complexida
 Dois comandos humanos devem bastar para retomar a memória operacional:
 
 - **“Liste os blocos ativos do CUSTOMROM.”** O agente consulta o Notion e apresenta nome, objetivo, branch/papel e estado atual em linguagem simples.
-- **“Leia o bloco X e siga-o.”** O bloco passa a ser o ponto de entrada. O agente resolve sozinho Central Oficial, Estado Oficial, Roadmap, decisões, aprendizados, códigos `CR-xxx`, branch, commit, governança, evidências ADB e demais dependências.
+- **“Leia o bloco X e siga-o.”** O bloco passa a ser o ponto de entrada. O agente resolve sozinho Central Oficial, Estado Oficial, Roadmap, decisões, aprendizados, códigos internos, branch, commit, governança, evidências ADB e demais dependências.
 
 O proprietário não é responsável por memorizar SHAs, comandos ADB, arquivos, códigos internos ou dependências técnicas já registradas.
+
+## Regra absoluta de linguagem humana
+
+A interface com o proprietário deve ser **humana primeiro e técnica depois**.
+
+Identificadores técnicos continuam existindo para rastreabilidade, mas nunca podem ser apresentados como se fossem o nome do estado ou da ação.
+
+Regras obrigatórias:
+
+- toda fotografia salva deve receber um **nome humano descritivo** antes do SHA;
+- todo bloco deve ter nome que explique a ação ou resultado, não apenas código interno;
+- toda branch deve ser explicada pelo seu papel quando mencionada pela primeira vez;
+- todo comando ADB deve vir acompanhado de uma frase simples dizendo o que ele vai observar ou alterar;
+- códigos como SHA, `CR-xxx`, nomes de arquivo, package names e IDs ficam em segundo plano e só aparecem quando acrescentarem rastreabilidade útil;
+- nunca responder ao proprietário apenas com SHA, nome de arquivo, código de decisão, número de workflow ou mensagem técnica;
+- quando o identificador técnico for necessário, usar o formato: **Nome humano — referência técnica**;
+- em resumos de estado, priorizar: **o que é**, **o que aconteceu**, **efeito prático**, **o que ficou intacto** e **próximo passo**.
+
+Exemplo correto:
+
+> **Fotografia: Fundação da governança pronta e sincronizada.** Referência técnica: `6600401…`.
+
+Exemplo incorreto:
+
+> `660040137a54062c284a2cbe831046772a51e564` é a fotografia atual.
+
+O proprietário nunca deve precisar interpretar um identificador técnico para entender o projeto.
 
 ## Sequência obrigatória
 
@@ -137,7 +164,7 @@ O agente deve explicar ao proprietário, em linguagem simples:
 - validação física ainda pendente;
 - próximo passo único.
 
-Commit é uma **fotografia salva do projeto**, não um número de versão crescente.
+Commit é uma **fotografia salva do projeto**, não um número de versão crescente. Para o proprietário, essa fotografia deve sempre ter um **nome humano**; o SHA é apenas a referência técnica dessa fotografia.
 
 ## Sincronização GitHub ↔ Notion
 
@@ -149,7 +176,9 @@ Antes de iniciar o próximo bloco funcional, `branch + PROJECT_STATE.md + bloco 
 
 - Modo executado:
 - Objetivo aprovado:
-- Repositório, branch e fotografia:
+- Onde estamos:
+- Fotografia humana do estado:
+- Referência técnica (somente se útil):
 - Estado explicado:
 - Evidência coletada:
 - Alterações feitas:
