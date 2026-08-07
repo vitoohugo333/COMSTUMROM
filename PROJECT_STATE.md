@@ -1,128 +1,114 @@
 # Estado oficial — CUSTOMROM TAYTECH (`main`)
 
 **Atualizado em:** 2026-08-07, horário de Brasília  
-**Estado:** fundação de governança e Central Oficial concluídas; `Bloco 01 — Baseline ADB de desempenho` aberto. Nenhuma otimização ADB foi aplicada ainda por este projeto.  
-**Papel da `main`:** governança canônica, documentação, evidência e ferramentas seguras. Não existe branch funcional separada neste checkpoint.
+**Estado:** fundação concluída; operação mobile-first formalizada; **Bloco 01 — Descobrir por que a central está lenta** pronto para a primeira coleta. Nenhuma otimização ADB foi aplicada ainda.  
+**Papel da `main`:** linha principal de governança, documentação, evidência e ferramentas seguras.
+
+## Onde estamos
+
+Estamos no ponto **antes de qualquer otimização da TayTech**. A central continua no estado original em relação às ações deste projeto. O próximo passo é apenas criar uma fotografia de diagnóstico por ADB.
+
+## Fotografia humana atual
+
+**Governança pronta + operação pelo celular padronizada + diagnóstico inicial ainda não executado.**
+
+Referências técnicas ficam em segundo plano e só são apresentadas ao proprietário quando acrescentarem rastreabilidade útil.
 
 ## Objetivo atual
 
-Começar pela camada de menor risco e maior retorno: **diagnóstico e otimização reversível via ADB**, medindo por que uma central com 4 GB de RAM apresenta lentidão antes de considerar ROM, root ou flash.
+Descobrir por que uma central anunciada com 4 GB de RAM apresenta lentidão, começando pela camada de menor risco: leitura ADB e evidência salva em arquivo legível.
 
-## Repositório
+## Repositório e linha de trabalho
 
-- oficial: `vitoohugo333/COMSTUMROM`;
-- branch atual: `main`;
-- estado de entrada desta fundação: repositório vazio;
-- branch nova: não criada;
+- repositório oficial: `vitoohugo333/COMSTUMROM`;
+- linha de trabalho humana: **Linha principal de governança e diagnóstico**;
+- nome técnico da branch: `main`;
+- nenhuma branch nova foi criada;
 - publicação/deploy: não aplicável.
 
-## Governança criada
+## Governança ativa
 
-Arquivos canônicos:
+Arquivos canônicos incluem:
 
 - `START_HERE.md`;
 - `AGENTS.md`;
 - `SKILLS.md`;
+- `MOBILE_WORKFLOW.md`;
 - `TESTING_RULES.md`;
 - `ADB_RULES.md`;
 - `ROM_SAFETY_RULES.md`;
 - `LEARNING_RULES.md`;
 - `PROJECT_STATE.md`;
-- `ci/branch-policy.json`;
-- `scripts/ci/verify-repository.mjs`;
-- `.github/workflows/ci-autonomous.yml`.
+- política e verificador de governança.
+
+## Operação mobile-first
+
+Regra permanente:
+
+- instruções práticas chegam preparadas para celular/tablet;
+- o agente informa **o que fazer, onde tocar, o que colar, onde o resultado ficará, o que acontecerá, o risco e o que deve ser enviado de volta**;
+- quando a saída for grande, ela deve ser gravada automaticamente em arquivo em vez de exigir cópia manual de centenas de linhas;
+- nomes humanos vêm antes de SHA, package name, código interno ou nome técnico;
+- o proprietário não deve montar comandos, substituir placeholders ou interpretar identificadores técnicos para acompanhar o projeto.
+
+A pasta padrão de evidências ADB é `/sdcard/CUSTOMROM/`, conforme `MOBILE_WORKFLOW.md`.
 
 ## Codex Engineering Guardrails
 
 - plugin primeiro;
 - skill direta como fallback;
 - `code-verification` para auditoria/diagnóstico;
-- `code-work` para mudança autorizada;
-- neste bootstrap documental, `code-work` foi carregado diretamente como fallback antes da primeira escrita.
+- `code-work` para escrita autorizada;
+- a formalização mobile-first foi feita sob `code-work` direto como fallback.
 
-## Baseline documental já disponível
+## Baseline documental disponível
 
-### Sistema principal
+Informações já documentadas:
 
-Informações visíveis na tela de sistema fornecida pelo proprietário:
-
-- build Android/sistema: `JCRK01-V1.0.60R8-251023_1036`;
+- sistema/build: `JCRK01-V1.0.60R8-251023_1036`;
 - MCU: `JCMM40-0-2025.07.23_15:06`;
-- versão da camada/app CAN exibida: `1.0.3853.2026-06-17-09-33.060a51b6ee`.
-
-### CAN / veículo
-
-Logs fornecidos registram:
-
-- CAN box respondendo como `H1H2PAF23A-240409`;
-- configuração do aplicativo CAN: `Hiworld-Peugeot-208-2023~Present (Brazil)-All`;
-- stack Android observada com componentes `Jancar*` e pacote/processo `canbus`.
-
-### Arquivos `.iap`
-
-A auditoria inicial classificou os `.iap` recebidos como firmware da camada CAN/HiWorld, não como ROM Android. Nenhum `.iap` foi instalado pelo projeto.
+- camada/app CAN exibida: `1.0.3853.2026-06-17-09-33.060a51b6ee`;
+- CAN box observada: `H1H2PAF23A-240409`;
+- configuração CAN observada: HiWorld para Peugeot 208 Brasil;
+- componentes Jancar/canbus observados nos logs;
+- arquivos `.iap` tratados como firmware CAN/HiWorld, não como ROM Android.
 
 ## Estado físico/ADB
 
-- o proprietário informou que o Wireless ADB da central funciona;
-- o celular/tablet de controle está conectado à central pelo Bugjaeger;
-- **nenhum comando de diagnóstico do Bloco 01 foi executado ainda**;
-- desempenho atual relatado: lentidão perceptível mesmo com uso leve; causa ainda não confirmada.
+- Wireless ADB funciona, segundo validação anterior do proprietário;
+- Bugjaeger está conectado à TayTech;
+- **nenhum comando do diagnóstico inicial foi executado ainda**;
+- nenhuma desativação, remoção, root, flash ou alteração de firmware foi feita por este projeto.
 
 ## Limites vigentes
 
-- começar somente com comandos VERDES de leitura;
-- nenhum `disable-user` antes de baseline e análise;
+- primeira ação: somente observação + criação de arquivo de evidência no armazenamento compartilhado;
+- nenhum `disable-user` antes do diagnóstico;
 - nenhum `pm uninstall --user 0` nesta fase;
-- nenhum root, fastboot, flash, remount, alteração de partição, AVB, MCU ou CAN firmware;
-- funções automotivas permanecem protegidas por presunção até mapa de dependências.
+- nenhum root, fastboot, flash, remount, partição, AVB, MCU ou CAN firmware;
+- funções automotivas são protegidas por presunção até mapa de dependências.
 
 ## Notion sync
 
-**CONCLUÍDO neste checkpoint.**
+**CONCLUÍDO para a regra mobile-first e para o primeiro bloco operacional.**
 
-Central criada: `CUSTOMROM TAYTECH — Central Oficial do Projeto`.
-
-Estrutura criada:
-
-- `00 — Instrução Operacional`;
-- `01 — Estado Oficial`;
-- `02 — Roadmap Mestre`;
-- `03 — Governança e Autoridade`;
-- `04 — Handoff para Novo Chat`;
-- `05 — Registro de Alterações do Notion`;
-- banco `Blocos de Execução`;
-- banco `Decisões`;
-- banco `Aprendizados`;
-- `Fundação — Governança e Central Oficial` marcada como PASS;
-- `Bloco 01 — Baseline ADB de desempenho` em execução;
-- decisões `D-001` a `D-004` registradas;
-- alteração estrutural de memória registrada como `CR-001`.
+O bloco foi renomeado para **Bloco 01 — Descobrir por que a central está lenta** e agora contém instrução pronta para celular, destino do relatório, consequência, risco, conferência e forma de envio.
 
 ## Verificação da governança
 
-- criação remota dos arquivos confirmada pelo conector GitHub;
-- fotografia da `main` confirmada pelo histórico remoto;
-- `scripts/ci/verify-repository.mjs` teve sintaxe validada localmente e passou numa simulação determinística do contrato de arquivos, JSON, marcadores e segredo em texto claro;
-- o conector disponível nesta sessão não expôs uma execução `push` do GitHub Actions para confirmação; portanto **não afirmar CI remota verde neste checkpoint**.
-
-## Evidência necessária para o primeiro diagnóstico
-
-O Bloco 01 começa com uma coleta curta, em repouso, e para para interpretação antes de ampliar comandos:
-
-```sh
-getprop ro.hardware
-getprop ro.board.platform
-getprop ro.product.board
-cat /proc/meminfo
-cat /proc/swaps
-```
+- `MOBILE_WORKFLOW.md` foi adicionado à governança canônica;
+- `SKILLS.md` passou a exigir sua leitura antes de instruções práticas;
+- o verificador determinístico passou a exigir a presença desse arquivo;
+- CI remota ainda não deve ser chamada de verde sem execução fresca visível.
 
 ## Aprendizado
 
-- **Aprendizado fechado de governança:** o CUSTOMROM herdou do VETTA a prevenção contra CI acoplada a uma versão histórica fixa; a regra é marcador de governança válido e, em branches futuras, paridade com a `main`.
-- Nenhum aprendizado permanente novo do aparelho ainda; o baseline ADB ainda não começou.
+**Aprendizado fechado de operação:** o proprietário trabalha principalmente pelo celular/tablet; portanto, comandos e estados técnicos precisam ser empacotados em blocos humanos, copiáveis e com destino/consequência explícitos.
 
-## Próximo passo único
+## Próximo passo
 
-Executar a **Coleta A** do `Bloco 01 — Baseline ADB de desempenho` no Shell do Bugjaeger e analisar o resultado antes de qualquer comando AMARELO.
+No Bugjaeger, executar **um único bloco copiável** que cria o arquivo:
+
+`/sdcard/CUSTOMROM/diagnosticos/01_estado_inicial_da_central.txt`
+
+Esse relatório será enviado ao agente para decidir a próxima coleta. Nenhuma otimização ocorre antes dessa interpretação.
