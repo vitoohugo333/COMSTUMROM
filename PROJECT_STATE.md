@@ -1,8 +1,8 @@
-# Estado oficial — CUSTOMROM ADB S23 Premium / Contextual Control V5
+# Estado oficial — CUSTOMROM ADB S23 Premium / Contextual Control V5 + Spotify Diagnostic v1
 
 **Atualizado em:** 2026-08-08 BRT  
 **Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
-**Estado:** UI premium preservada; jornadas acionáveis refinadas; controle contextual de packages compilado; catálogo com 62 receitas; validação física desta nova fotografia pendente.
+**Estado:** UI premium preservada; jornadas acionáveis refinadas; controle contextual de packages compilado; catálogo com 63 receitas; diagnóstico específico do Spotify implementado e compilado; validação física desta nova fotografia pendente.
 
 ## Norte atual
 
@@ -33,7 +33,7 @@ O proprietário validou a build anterior no S23 e encontrou:
 
 ### Package sem vai-e-vem
 
-`ActionDestination.PACKAGE` agora abre `openPackageContext()`.
+`ActionDestination.PACKAGE` abre `openPackageContext()`.
 
 Se o package já está no inventário, abre detalhe imediatamente. Caso contrário, o CUSTOMROM coleta somente o necessário daquele alvo:
 
@@ -80,9 +80,9 @@ Não existe desativação automática.
 
 ## Catálogo de receitas
 
-Catálogo ampliado de **44 para 62** rotinas, preservando as anteriores.
+Catálogo ampliado de **44 para 63** rotinas, preservando as anteriores.
 
-Novas capacidades incluem:
+Capacidades incluem:
 
 - foreground/persistent services;
 - AppOps;
@@ -101,23 +101,111 @@ Novas capacidades incluem:
 - origem/installer dos packages;
 - limites de background;
 - Ethernet;
-- data/timezone.
+- data/timezone;
+- **Por que o Spotify está lento?**.
 
-`FunctionalActionEngine.kt` foi ampliado para ligar as novas coletas a packages contextuais, filtros, diagnósticos correlatos e próximas ações. A expansão não é apenas um catálogo maior de dumps.
+`FunctionalActionEngine.kt` liga as coletas a packages contextuais, filtros, diagnósticos correlatos e próximas ações. A expansão não é apenas um catálogo maior de dumps.
 
-## Skills destiladas
+## Spotify Performance Diagnostic v1
 
-Referências externas usadas somente como matéria-prima:
+### Pergunta de produto
 
-- `haowu77/android-adb-skill`: observar → agir → verificar e preservar contexto;
-- `wesleydonk/ai-skill-android-logcat`: log filtrado por package/PID, saída delimitada e warnings;
-- `songhuiming2007-coder/android-audit`: inventário → classificação → escolha humana → ação user 0 → verificação → restauração.
+`Por que o Spotify está lento? É arquitetura incompatível ou gargalo da central?`
 
-Listas/regras genéricas dessas skills não substituem AGENTS, Notion, evidência TayTech nem instrução do proprietário.
+### Evidência estática já confirmada
 
-## Evidência automatizada final
+APK analisado:
 
-Fotografia final compilada:
+- package: `com.spotify.music`;
+- versionName: `9.1.72.1891`;
+- versionCode: `144716725`;
+- minSdk: `24`;
+- targetSdk: `37`;
+- primaryCpuAbi observada: `armeabi-v7a`;
+- SHA-256 do APK fornecido: `a347eac03923a63793bcfe0e179ab0a021490ac54fa541846ad0bdd10e0b4ae3`.
+
+TayTech observada nos dumps:
+
+- plataforma: `rk3326`;
+- ABI: `armeabi-v7a`;
+- abilist: `armeabi-v7a,armeabi`;
+- abilist64 vazia;
+- `ro.build.version.release=13`;
+- `ro.build.version.sdk=30`;
+- RAM total aproximada: 4 GiB.
+
+**Conclusão estática:** a ABI instalada do Spotify é compatível com a ABI oferecida pela central. A lentidão não deve ser atribuída a “APK de arquitetura errada” sem nova evidência.
+
+### Aprendizados técnicos fixados
+
+1. **ABI compatível não implica desempenho adequado.** A causa pode ser contenção de CPU/RAM, renderização, áudio, framework OEM ou serviços concorrentes.
+2. `SIGQUIT`/Signal Catcher provocado por `dumpstate` **não é ANR**. ANR só deve ser afirmado com evidência explícita de ANR.
+3. Duração total de ciclo de GC **não é igual à pausa stop-the-world da UI**. Em captura real houve ciclo total de ~651,9 ms com campo `paused` na ordem de microssegundos.
+4. `am_kill` descrito como processo `empty` por longo período é reclaim de background; **não prova crash**.
+5. Uma fotografia com outro app ou GMS consumindo CPU prova contenção do ambiente naquela janela; não prova culpa exclusiva do Spotify.
+
+### Nova receita VERDE
+
+ID: `spotify-diagnostico`  
+Nome humano: **Por que o Spotify está lento?**  
+Saída: `63_spotify_diagnostico.txt`
+
+A coleta é somente leitura e cruza:
+
+- versão, SDKs e ABI do Spotify;
+- release/SDK/security patch/ABI da TayTech;
+- PID e `dumpsys meminfo` do Spotify;
+- RAM e swap/ZRAM;
+- CPU do Spotify, Google Play Services, `system_server`, `surfaceflinger` e `audioserver`;
+- `dumpsys gfxinfo com.spotify.music`;
+- áudio, foco, A2DP e MediaSession;
+- `activity exit-info`;
+- thermal;
+- logcat recente filtrado por Spotify, codecs, áudio, LMK, Choreographer e A2DP.
+
+Nenhuma limpeza de cache, force-stop, troca de APK, disable, alteração do GMS ou ajuste de sistema é executado automaticamente.
+
+### Interpretação acionável
+
+`spotifyReport(raw)` separa:
+
+- ABI compatível/incompatível;
+- framework não padrão;
+- pressão de RAM/swap;
+- concorrência de CPU;
+- janky frames;
+- GC sem confundir total com pausa;
+- crash/ANR somente por padrões explícitos;
+- reclaim de processo vazio;
+- indícios de desconexão A2DP.
+
+Depois oferece:
+
+- abrir detalhe do Spotify;
+- investigar Google Play Services;
+- cruzar CPU;
+- cruzar áudio;
+- cruzar renderização;
+- ver crashes/ANRs;
+- repetir a captura com o Spotify aberto durante o sintoma.
+
+## Evidência automatizada do Spotify Diagnostic
+
+Implementação persistida na branch:
+
+- apply script: `tools/apply_spotify_diagnostic.py`;
+- workflow: `.github/workflows/build-customrom-adb-s23-premium.yml`;
+- source gerado e persistido após gate: `674082197509a7eefa0a15dba486f6288aaa600e`;
+- catálogo após aplicação: **63 receitas**;
+- marcador de build: `spotify-performance-diagnostic-v1` em `7f6d22048c0274774aa34e7a864bb72bb8cc690a`.
+
+O workflow só persiste `FunctionalActionEngine.kt` e `recipes.json` no passo de source verificado quando `validate_native_customrom.py` e `:app:assembleDebug` têm resultado `success`. Portanto, o commit gerado `674082...` é evidência direta de que o código novo atravessou ambos os gates antes de ser salvo na branch.
+
+O comprovante `ci/contextual-control-v5-proof.json` ainda aponta para a fotografia anterior de 62 receitas no instante desta atualização; por isso nenhum SHA de APK novo foi inventado ou promovido como final. O código do diagnóstico está compilado; a fotografia de artifact/hash específica desta rodada deve ser considerada separada do artifact V5 anterior.
+
+## Evidência automatizada anterior do Contextual Control V5
+
+Fotografia anterior compilada:
 
 - source: `724312d8cc0e4eed810890df930b6a30ff3d6a8c`;
 - run: `31244058225`;
@@ -127,14 +215,23 @@ Fotografia final compilada:
 - APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
 - SHA-256: `3f766dda89f90fe9ae0f64101e6cdaa41aca0aa750cf59f7ba309d6d03863732`.
 
-O artifact foi baixado fora da Actions. SHA-256 recalculado localmente e coincidente. Teste de integridade ZIP do APK: sem erros.
+Esse artifact é evidência da fotografia V5 anterior e não deve ser confundido com a nova receita Spotify.
 
-## Incidentes desta rodada
+## Incidente permanente
 
-- v3: substituição textual frágil não encontrou o bloco esperado; nenhum source inválido foi persistido;
-- v4: validator PASS, Kotlin build FAIL por escaping de newline/variáveis shell; nenhum source inválido foi persistido;
-- v5/v5.1: escaping corrigido; implementação persistida somente após validator + build PASS;
-- workflow legado também executa em paralelo e escreve `ci/s23-premium-build-proof.json`; o gate contextual ganhou comprovante isolado para evitar confusão entre fotografias.
+Documento: `docs/incidents/2026-08-08-spotify-performance-rk3326.md`.
+
+O incidente registra evidência, falsos positivos corrigidos, contrato da nova receita e gate físico de fechamento para que futuros agentes não voltem a concluir “ABI incompatível”, “SIGQUIT = ANR” ou “GC total = pausa de UI” sem evidência.
+
+## Skills destiladas
+
+Referências externas usadas anteriormente somente como matéria-prima:
+
+- `haowu77/android-adb-skill`: observar → agir → verificar e preservar contexto;
+- `wesleydonk/ai-skill-android-logcat`: log filtrado por package/PID, saída delimitada e warnings;
+- `songhuiming2007-coder/android-audit`: inventário → classificação → escolha humana → ação user 0 → verificação → restauração.
+
+Listas/regras genéricas dessas skills não substituem AGENTS, Notion, evidência TayTech nem instrução do proprietário.
 
 ## Blueprint
 
@@ -149,6 +246,8 @@ Nesta rodada não houve:
 - release/deploy;
 - instalação automática;
 - desativação física automática na TayTech;
+- limpeza de dados/cache do Spotify;
+- alteração física do Google Play Services;
 - root/remount/AVB/flash;
 - alteração de ROM, MCU ou firmware CAN.
 
@@ -156,9 +255,10 @@ Nesta rodada não houve:
 
 No S23 → TayTech:
 
-1. executar `O que inicia junto com a central` e validar scroll com 45+ packages;
-2. tocar Rádio/Launcher e confirmar detalhe no mesmo contexto, sem navegação automática para Apps;
-3. confirmar que criticidade ALTA informa consequência, mas oferece controle manual user 0;
-4. testar conscientemente disable + enable em um package escolhido pelo proprietário e verificar estado/ledger;
-5. testar novas jornadas de serviços persistentes, UsageStats, batterystats e launchers;
-6. observar crash/ANR/logcat do próprio CUSTOMROM.
+1. abrir o Spotify e reproduzir a lentidão real;
+2. executar **Por que o Spotify está lento?** durante o sintoma;
+3. confirmar se o resultado detecta corretamente ABI, CPU, memória, renderização, áudio e eventos recentes;
+4. usar as ações de correlação sem sair da jornada;
+5. exportar a sessão/Evidence Pack;
+6. somente com essa evidência decidir se vale mexer em GMS, versão do Spotify ou outro componente;
+7. manter qualquer ação que altere estado como AMARELA, explícita e reversível.
