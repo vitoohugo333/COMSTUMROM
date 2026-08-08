@@ -1,0 +1,51 @@
+[
+  {
+    "id": "estado-geral",
+    "name": "Estado geral da central",
+    "risk": "VERDE",
+    "command": "echo '=== CUSTOMROM ESTADO GERAL ==='; date; echo; echo '--- MODELO ---'; getprop ro.product.model; echo '--- FABRICANTE ---'; getprop ro.product.manufacturer; echo '--- HARDWARE ---'; getprop ro.hardware; echo '--- PLATAFORMA ---'; getprop ro.board.platform; echo '--- BUILD ---'; getprop ro.build.display.id; echo '--- ANDROID ---'; getprop ro.build.version.release; echo '--- ABI ---'; getprop ro.product.cpu.abilist; echo; echo '--- MEMORIA ---'; cat /proc/meminfo; echo; echo '--- SWAP ---'; cat /proc/swaps; echo; echo '--- ARMAZENAMENTO ---'; df -h",
+    "output": "01_estado_geral_da_central.txt"
+  },
+  {
+    "id": "memoria-zram",
+    "name": "Memória, swap e ZRAM",
+    "risk": "VERDE",
+    "command": "echo '=== MEMORIA ==='; cat /proc/meminfo; echo; echo '=== SWAP ==='; cat /proc/swaps; echo; echo '=== ZRAM ==='; ls -l /sys/block/zram* 2>/dev/null; for z in /sys/block/zram*/mm_stat; do [ -f \"$z\" ] && { echo \"--- $z ---\"; cat \"$z\"; }; done",
+    "output": "02_memoria_swap_zram.txt"
+  },
+  {
+    "id": "processos",
+    "name": "Processos mais pesados",
+    "risk": "VERDE",
+    "command": "echo '=== TOP ==='; top -b -n 1 -m 30 2>/dev/null || top -n 1; echo; echo '=== PS ==='; ps -A",
+    "output": "03_processos_mais_pesados.txt"
+  },
+  {
+    "id": "rede-adb",
+    "name": "Rede e ADB",
+    "risk": "VERDE",
+    "command": "echo '=== REDE ==='; ip addr 2>/dev/null; echo; ip route 2>/dev/null; echo; echo '=== ADB PROPS ==='; getprop | grep -i adb 2>/dev/null; echo; echo '=== PORTAS ==='; ss -lnt 2>/dev/null || netstat -lnt 2>/dev/null",
+    "output": "04_rede_e_adb.txt"
+  },
+  {
+    "id": "pacotes-servicos",
+    "name": "Pacotes e serviços",
+    "risk": "VERDE",
+    "command": "echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== SERVICOS ==='; dumpsys activity services 2>/dev/null",
+    "output": "05_pacotes_e_servicos.txt"
+  },
+  {
+    "id": "logcat-curto",
+    "name": "Logcat curto",
+    "risk": "VERDE",
+    "command": "logcat -d -v threadtime -t 1200",
+    "output": "06_logcat_curto.txt"
+  },
+  {
+    "id": "snapshot-completo",
+    "name": "Snapshot completo para análise",
+    "risk": "VERDE",
+    "command": "echo '=== IDENTIDADE ==='; getprop; echo; echo '=== MEMORIA ==='; cat /proc/meminfo; echo; cat /proc/swaps; echo; echo '=== CPU ==='; cat /proc/cpuinfo; echo; echo '=== TOP ==='; top -b -n 1 -m 40 2>/dev/null || top -n 1; echo; echo '=== DISCO ==='; df -h; echo; echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== PROCESSOS ==='; ps -A",
+    "output": "07_snapshot_completo.txt"
+  }
+]
