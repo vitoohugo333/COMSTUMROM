@@ -36,12 +36,24 @@ object PremiumSafetyPolicy {
         "fastboot",
         " flash ",
         "erase ",
+        "wipe ",
         "pm uninstall",
         "adb root",
-        "remount",
+        " remount",
+        "mount -o rw",
         "dd if=",
+        "dd of=",
         "mkfs",
-        "reboot bootloader"
+        "parted ",
+        "fdisk ",
+        "sgdisk ",
+        "avbctl ",
+        "magisk",
+        "setenforce 0",
+        "reboot bootloader",
+        "reboot recovery",
+        "rm -rf",
+        "rm -r "
     )
 
     private val reversibleTokens = listOf(
@@ -52,12 +64,26 @@ object PremiumSafetyPolicy {
         "pm clear",
         "svc ",
         "setprop ",
-        "reboot"
+        "reboot",
+        " kill ",
+        "pkill ",
+        "killall ",
+        "chmod ",
+        "chown ",
+        "cmd package install",
+        "cmd package set-",
+        "input tap",
+        "input swipe",
+        "input keyevent",
+        "uiautomator dump",
+        "rm -f "
     )
 
     private val protectedPackageTokens = listOf(
         "canbus",
+        "canbox",
         "jancar",
+        "hiworld",
         "mcu",
         "vehicle",
         "carservice",
@@ -68,6 +94,7 @@ object PremiumSafetyPolicy {
         "camera",
         "parking",
         "sensor",
+        "steering",
         "radio",
         "dsp",
         "amplifier",
@@ -80,7 +107,7 @@ object PremiumSafetyPolicy {
     )
 
     fun classify(command: String): String {
-        val normalized = " ${command.lowercase(Locale.ROOT)} "
+        val normalized = " ${command.lowercase(Locale.ROOT).replace('\n', ' ')} "
         if (destructiveTokens.any { normalized.contains(it) }) return "VERMELHO"
         if (reversibleTokens.any { normalized.contains(it) }) return "AMARELO"
         return "VERDE"
@@ -92,8 +119,8 @@ object PremiumSafetyPolicy {
     }
 
     fun explanation(risk: String): String = when (risk) {
-        "VERMELHO" -> "Ação estrutural ou destrutiva. Não faz parte do fluxo comum do CUSTOMROM e exige autorização específica e plano de recuperação."
-        "AMARELO" -> "Ação que altera estado de forma reversível. Confirme o alvo e mantenha o caminho de restauração visível."
+        "VERMELHO" -> "Ação estrutural, destrutiva ou com potencial de exigir recuperação. O fluxo comum do CUSTOMROM bloqueia esta classe e exige autorização específica fora desta tela."
+        "AMARELO" -> "Ação que altera estado ou interage ativamente com o alvo. Confirme o efeito esperado e mantenha o caminho de restauração visível quando houver rollback."
         else -> "Somente leitura ou ação observacional."
     }
 }
