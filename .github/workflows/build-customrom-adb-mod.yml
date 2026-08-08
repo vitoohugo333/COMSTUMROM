@@ -1,0 +1,91 @@
+name: Build CUSTOMROM ADB mod
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_hint:
+        description: 'Caminho opcional do APK ou ZIP de referência dentro do repositório'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        shell: bash
+        run: |
+          sdkmanager 'build-tools;35.0.0'
+          echo "$ANDROID_SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+      - name: Download pinned Apktool
+        shell: bash
+        run: |
+          mkdir -p .tools
+          curl -L --fail --retry 3 \
+            -o .tools/apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.2/apktool_3.0.2.jar
+          java -jar .tools/apktool.jar --version
+
+      - name: Decode, apply CUSTOMROM patches and rebuild
+        shell: bash
+        env:
+          SOURCE_HINT: ${{ inputs.source_hint }}
+          APKTOOL_JAR: ${{ github.workspace }}/.tools/apktool.jar
+        run: |
+          chmod +x tools/bugjaeger_mod/build_mod.sh
+          tools/bugjaeger_mod/build_mod.sh
+
+      - name: Generate temporary signing key
+        shell: bash
+        run: |
+          keytool -genkeypair -noprompt \
+            -keystore .work/customrom-debug.jks \
+            -storepass customrom \
+            -keypass customrom \
+            -alias customrom \
+            -keyalg RSA -keysize 3072 -validity 3650 \
+            -dname 'CN=CUSTOMROM Development,O=CUSTOMROM,C=BR'
+
+      - name: Align and sign APK
+        shell: bash
+        run: |
+          zipalign -f -p 4 out/CUSTOMROM-ADB-unsigned.apk out/CUSTOMROM-ADB-aligned.apk
+          apksigner sign \
+            --ks .work/customrom-debug.jks \
+            --ks-pass pass:customrom \
+            --key-pass pass:customrom \
+            --out out/CUSTOMROM-ADB-signed.apk \
+            out/CUSTOMROM-ADB-aligned.apk
+          apksigner verify --verbose --print-certs out/CUSTOMROM-ADB-signed.apk | tee out/signature-verification.txt
+          sha256sum out/CUSTOMROM-ADB-signed.apk | tee out/signed-sha256.txt
+
+      - name: Upload private build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CUSTOMROM-ADB-build
+          path: |
+            out/CUSTOMROM-ADB-signed.apk
+            out/build-metadata.txt
+            out/patch-report.txt
+            out/signature-verification.txt
+            out/signed-sha256.txt
+          retention-days: 7
+          if-no-files-found: error
