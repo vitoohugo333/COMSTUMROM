@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: build-customrom-adb-s23-practical-v61-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -110,7 +110,8 @@ jobs:
             tools/validate_native_customrom.py
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: install taytech agent from CUSTOMROM v6.1'
+            git commit -m 'feat: install taytech agent from CUSTOMROM v6.1 [skip ci]'
+            git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           else
             echo 'VERIFIED_SOURCE_ALREADY_COMMITTED=1'
