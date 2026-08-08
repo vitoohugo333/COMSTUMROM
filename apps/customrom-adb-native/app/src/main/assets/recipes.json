@@ -17,21 +17,21 @@
     "id": "processos",
     "name": "Processos mais pesados",
     "risk": "VERDE",
-    "command": "echo '=== TOP ==='; top -b -n 1 -m 30 2>/dev/null || top -n 1; echo; echo '=== PS ==='; ps -A",
+    "command": "echo '=== TOP ==='; top -b -n 1 -m 30 2>/dev/null || top -n 1; echo; echo '=== CPUINFO DUMPSYS ==='; dumpsys cpuinfo 2>/dev/null; echo; echo '=== PS ==='; ps -A",
     "output": "03_processos_mais_pesados.txt"
   },
   {
     "id": "rede-adb",
     "name": "Rede e ADB",
     "risk": "VERDE",
-    "command": "echo '=== REDE ==='; ip addr 2>/dev/null; echo; ip route 2>/dev/null; echo; echo '=== ADB PROPS ==='; getprop | grep -i adb 2>/dev/null; echo; echo '=== PORTAS ==='; ss -lnt 2>/dev/null || netstat -lnt 2>/dev/null",
+    "command": "echo '=== REDE ==='; ip addr 2>/dev/null; echo; ip route 2>/dev/null; echo; echo '=== WIFI ==='; dumpsys wifi 2>/dev/null | head -n 120; echo; echo '=== ADB PROPS ==='; getprop | grep -i adb 2>/dev/null; echo; echo '=== PORTAS ==='; ss -lnt 2>/dev/null || netstat -lnt 2>/dev/null",
     "output": "04_rede_e_adb.txt"
   },
   {
     "id": "pacotes-servicos",
     "name": "Pacotes e serviços",
     "risk": "VERDE",
-    "command": "echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== SERVICOS ==='; dumpsys activity services 2>/dev/null",
+    "command": "echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== DESATIVADOS ==='; pm list packages -d; echo; echo '=== SERVICOS ==='; dumpsys activity services 2>/dev/null",
     "output": "05_pacotes_e_servicos.txt"
   },
   {
@@ -45,7 +45,154 @@
     "id": "snapshot-completo",
     "name": "Snapshot completo para análise",
     "risk": "VERDE",
-    "command": "echo '=== IDENTIDADE ==='; getprop; echo; echo '=== MEMORIA ==='; cat /proc/meminfo; echo; cat /proc/swaps; echo; echo '=== CPU ==='; cat /proc/cpuinfo; echo; echo '=== TOP ==='; top -b -n 1 -m 40 2>/dev/null || top -n 1; echo; echo '=== DISCO ==='; df -h; echo; echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== PROCESSOS ==='; ps -A",
+    "command": "echo '=== IDENTIDADE ==='; getprop; echo; echo '=== MEMORIA ==='; cat /proc/meminfo; echo; cat /proc/swaps; echo; echo '=== CPU ==='; dumpsys cpuinfo 2>/dev/null; echo; echo '=== TOP ==='; top -b -n 1 -m 40 2>/dev/null || top -n 1; echo; echo '=== DISCO ==='; df -h; echo; echo '=== PACOTES ==='; pm list packages -f; echo; echo '=== PROCESSOS ==='; ps -A; echo; echo '=== POWER ==='; dumpsys power 2>/dev/null | head -n 160",
     "output": "07_snapshot_completo.txt"
+  },
+  {
+    "id": "thermal",
+    "name": "Temperatura e thermal",
+    "risk": "VERDE",
+    "command": "echo '=== THERMAL SERVICE ==='; dumpsys thermalservice 2>/dev/null; echo; echo '=== THERMAL SYSFS ==='; for z in /sys/class/thermal/thermal_zone*; do [ -r \"$z/type\" ] && { printf '%s: ' \"$(cat $z/type 2>/dev/null)\"; cat $z/temp 2>/dev/null; }; done | head -n 120",
+    "output": "08_temperatura_thermal.txt"
+  },
+  {
+    "id": "energia-power",
+    "name": "Energia, bateria e wake",
+    "risk": "VERDE",
+    "command": "echo '=== BATTERY ==='; dumpsys battery 2>/dev/null; echo; echo '=== POWER ==='; dumpsys power 2>/dev/null | head -n 220; echo; echo '=== DEVICE IDLE ==='; dumpsys deviceidle 2>/dev/null | head -n 160",
+    "output": "09_energia_power.txt"
+  },
+  {
+    "id": "armazenamento",
+    "name": "Armazenamento e partições",
+    "risk": "VERDE",
+    "command": "echo '=== DF ==='; df -h; echo; echo '=== MOUNTS ==='; mount | head -n 160; echo; echo '=== STORAGE ==='; dumpsys diskstats 2>/dev/null; dumpsys mount 2>/dev/null | head -n 180",
+    "output": "10_armazenamento.txt"
+  },
+  {
+    "id": "fluidez-gfx",
+    "name": "Fluidez e renderização",
+    "risk": "VERDE",
+    "command": "echo '=== SURFACEFLINGER ==='; dumpsys SurfaceFlinger 2>/dev/null | head -n 180; echo; echo '=== GFXINFO ==='; dumpsys gfxinfo 2>/dev/null | head -n 260; echo; echo '=== WINDOW ==='; dumpsys window 2>/dev/null | head -n 180",
+    "output": "11_fluidez_renderizacao.txt"
+  },
+  {
+    "id": "atividade-atual",
+    "name": "Tela e aplicativo em primeiro plano",
+    "risk": "VERDE",
+    "command": "echo '=== TOP ACTIVITY ==='; dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' | head -n 20; echo; echo '=== WINDOW FOCUS ==='; dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | head -n 20; echo; echo '=== DISPLAY ==='; dumpsys display 2>/dev/null | head -n 100",
+    "output": "12_atividade_atual.txt"
+  },
+  {
+    "id": "apps-terceiros",
+    "name": "Aplicativos instalados pelo usuário",
+    "risk": "VERDE",
+    "command": "pm list packages -3 -f -u",
+    "output": "13_apps_terceiros.txt"
+  },
+  {
+    "id": "apps-desativados",
+    "name": "Aplicativos desativados",
+    "risk": "VERDE",
+    "command": "pm list packages -d -f -u",
+    "output": "14_apps_desativados.txt"
+  },
+  {
+    "id": "tela-config",
+    "name": "Configuração de tela",
+    "risk": "VERDE",
+    "command": "echo '=== WM SIZE ==='; wm size; echo '=== WM DENSITY ==='; wm density; echo '=== BRILHO ==='; settings get system screen_brightness; settings get system screen_brightness_mode; echo '=== ROTACAO ==='; settings get system accelerometer_rotation; settings get system user_rotation; echo '=== TIMEOUT ==='; settings get system screen_off_timeout",
+    "output": "15_configuracao_tela.txt"
+  },
+  {
+    "id": "animacoes-status",
+    "name": "Estado das animações Android",
+    "risk": "VERDE",
+    "command": "echo 'window_animation_scale='$(settings get global window_animation_scale); echo 'transition_animation_scale='$(settings get global transition_animation_scale); echo 'animator_duration_scale='$(settings get global animator_duration_scale)",
+    "output": "16_animacoes_status.txt"
+  },
+  {
+    "id": "audio-radio",
+    "name": "Áudio e rotas ativas",
+    "risk": "VERDE",
+    "command": "echo '=== AUDIO ==='; dumpsys audio 2>/dev/null | head -n 260; echo; echo '=== MEDIA SESSION ==='; dumpsys media_session 2>/dev/null | head -n 160",
+    "output": "17_audio_rotas.txt"
+  },
+  {
+    "id": "bluetooth-status",
+    "name": "Bluetooth e dispositivos",
+    "risk": "VERDE",
+    "command": "echo '=== BLUETOOTH ==='; dumpsys bluetooth_manager 2>/dev/null | head -n 260; echo; echo '=== BT PROPS ==='; getprop | grep -i bluetooth | head -n 80",
+    "output": "18_bluetooth.txt"
+  },
+  {
+    "id": "boot-servicos",
+    "name": "Serviços iniciados no boot",
+    "risk": "VERDE",
+    "command": "echo '=== BOOT COMPLETED RECEIVERS ==='; dumpsys package 2>/dev/null | grep -B2 -A6 'android.intent.action.BOOT_COMPLETED' | head -n 320; echo; echo '=== RUNNING SERVICES ==='; dumpsys activity services 2>/dev/null | head -n 320",
+    "output": "19_boot_servicos.txt"
+  },
+  {
+    "id": "developer-state",
+    "name": "Configurações técnicas atuais",
+    "risk": "VERDE",
+    "command": "echo '=== GLOBAL SELECTED ==='; settings get global adb_enabled; settings get global development_settings_enabled; settings get global stay_on_while_plugged_in; settings get global window_animation_scale; settings get global transition_animation_scale; settings get global animator_duration_scale; echo; echo '=== SYSTEM SELECTED ==='; settings get system accelerometer_rotation; settings get system user_rotation; settings get system screen_off_timeout",
+    "output": "20_config_tecnica.txt"
+  },
+  {
+    "id": "animacoes-off",
+    "name": "Desativar animações do sistema",
+    "risk": "AMARELO",
+    "command": "settings put global window_animation_scale 0; settings put global transition_animation_scale 0; settings put global animator_duration_scale 0; echo 'Animações definidas para 0x'",
+    "output": "21_animacoes_off.txt"
+  },
+  {
+    "id": "animacoes-on",
+    "name": "Restaurar animações em 1x",
+    "risk": "AMARELO",
+    "command": "settings put global window_animation_scale 1; settings put global transition_animation_scale 1; settings put global animator_duration_scale 1; echo 'Animações restauradas para 1x'",
+    "output": "22_animacoes_1x.txt"
+  },
+  {
+    "id": "rotacao-auto-on",
+    "name": "Ativar rotação automática",
+    "risk": "AMARELO",
+    "command": "settings put system accelerometer_rotation 1; echo 'Rotação automática ativada'",
+    "output": "23_rotacao_auto_on.txt"
+  },
+  {
+    "id": "rotacao-auto-off",
+    "name": "Desativar rotação automática",
+    "risk": "AMARELO",
+    "command": "settings put system accelerometer_rotation 0; echo 'Rotação automática desativada'",
+    "output": "24_rotacao_auto_off.txt"
+  },
+  {
+    "id": "stayon-on",
+    "name": "Manter tela ligada durante carga",
+    "risk": "AMARELO",
+    "command": "svc power stayon true; echo 'Tela configurada para permanecer ligada durante alimentação'",
+    "output": "25_stayon_on.txt"
+  },
+  {
+    "id": "stayon-off",
+    "name": "Restaurar comportamento normal da tela",
+    "risk": "AMARELO",
+    "command": "svc power stayon false; echo 'Comportamento normal de suspensão restaurado'",
+    "output": "26_stayon_off.txt"
+  },
+  {
+    "id": "ui-hierarchy",
+    "name": "Inspecionar hierarquia da tela atual",
+    "risk": "AMARELO",
+    "command": "uiautomator dump /data/local/tmp/customrom_ui.xml >/dev/null 2>&1; cat /data/local/tmp/customrom_ui.xml 2>/dev/null; rm -f /data/local/tmp/customrom_ui.xml",
+    "output": "27_hierarquia_tela.xml"
+  },
+  {
+    "id": "diagnostico-lentidao",
+    "name": "Por que a central está lenta?",
+    "risk": "VERDE",
+    "command": "echo '=== MEMORIA RESUMO ==='; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo; echo '=== CPU TOP ==='; dumpsys cpuinfo 2>/dev/null | head -n 80; echo; echo '=== TOP PROCESSOS ==='; top -b -n 1 -m 25 2>/dev/null || top -n 1; echo; echo '=== DISCO ==='; df -h; echo; echo '=== THERMAL ==='; dumpsys thermalservice 2>/dev/null | head -n 100",
+    "output": "28_diagnostico_lentidao.txt"
   }
 ]
