@@ -1,11 +1,10 @@
 plugins {
     id("com.android.application")
-    kotlin("android")
 }
 
 android {
     namespace = "com.customrom.adb"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.customrom.adb"
@@ -13,6 +12,8 @@ android {
         // O alvo operacional atual é o S23; manter minSdk 29 evita um caminho legado
         // sem utilidade para este projeto e deixa a exportação determinística.
         minSdk = 29
+        // Mantemos target 35 deliberadamente. compileSdk 37 é exigido pela camada ADB,
+        // mas elevar target muda comportamento de runtime e será uma decisão separada.
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -31,10 +32,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 }
 
