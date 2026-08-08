@@ -38,18 +38,18 @@ jobs:
         if: steps.validate.outcome == 'success'
         uses: android-actions/setup-android@v3
 
-      - name: Install SDK 35
+      - name: Install Android API 37
         if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
 
       - name: Setup Gradle
         if: steps.validate.outcome == 'success'
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.5.0'
 
       - name: Build debug APK
         id: android_build
@@ -72,8 +72,11 @@ jobs:
           cat > out/native/build-info.txt <<EOF
           build=CUSTOMROM ADB native
           backend=com.flyfishxu:kadb:2.1.3
+          compileSdk=37
           minSdk=29
           targetSdk=35
+          agp=9.3.1
+          gradle=9.5.0
           source_commit=${GITHUB_SHA}
           run_id=${GITHUB_RUN_ID}
           run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
