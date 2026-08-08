@@ -1,241 +1,348 @@
-# Plano de execução — cliente ADB CUSTOMROM
+# Plano de execução — CUSTOMROM ADB / Cockpit Android
 
-## Direção aprovada
+## Direção vigente
 
-**Mudança mínima, efeito máximo.** O APK 5.0 analisado já possui um núcleo ADB maduro. O projeto não vai reescrever subsistemas que já funcionam sem evidência de necessidade.
+O objetivo não é um MVP artificialmente pequeno. O produto deve aproveitar o comportamento ADB já comprovado no APK de referência e evoluir para um **cockpit completo de engenharia Android**, sem reescrever subsistemas maduros apenas por preferência arquitetural.
 
-O foco é exclusivamente:
+A regra é: **preservar o que funciona; expandir agressivamente o que aumenta autonomia, observabilidade, repetibilidade, evidência e integração com o fluxo CUSTOMROM.**
 
-1. reconexão automática ao alvo já pareado;
-2. continuidade da sessão quando app/rede oscilam;
-3. entrada e saída de comandos mais operacional;
-4. interface CUSTOMROM reduzida ao fluxo real;
-5. preservação de recursos existentes fora desse caminho;
-6. empacotamento de evidências para uso direto no ChatGPT;
-7. rotinas de diagnóstico CUSTOMROM em um toque;
-8. sistema de perfis/alvos sem exigir que o usuário entenda IP, porta ou mDNS.
+## Núcleo funcional desejado
 
-## Evidência do APK analisado
+### 1. Connection Orchestrator
 
-Foram observados no artefato fornecido:
+Estado explícito por alvo:
 
-- `AdbClient` e `AdbClient2`;
-- `AdbDeviceHolder`;
-- `AdbShellRepository`;
-- `AdbCommandProcessor`;
-- `TargetConnectionsManager`;
-- `MdnsSdResolver`;
-- serviços `_adb-tls-pairing` e `_adb-tls-connect`;
-- rotinas `saveConnectDataForReconnect`, `reconnectLastWifiConnections` e `handleReconnectLastWifiConnections`;
-- preferências para reconectar alvos anteriores, buscar parâmetros de conexão automaticamente e manter ADB ativo em segundo plano;
-- layouts dedicados para conexão, pareamento, shell, comandos, arquivos e logcat.
+- conectado;
+- reconectando;
+- aguardando rede;
+- endpoint inválido;
+- autenticação preservada;
+- novo pareamento necessário.
 
-Conclusão: **a reconexão já existe; nossa primeira intervenção deve tornar esse comportamento previsível e prioritário, não substituir o motor.**
+Ordem de recuperação:
 
-## Arquitetura mínima
+1. transporte ainda vivo;
+2. último endpoint conhecido;
+3. `IP:5555` quando previamente validado;
+4. descoberta mDNS `_adb-tls-connect` para alvo já pareado;
+5. último IP conhecido com nova porta descoberta;
+6. conexão manual;
+7. pareamento novamente somente quando a autenticação realmente se perdeu.
 
-### 1. Connection Keeper
-
-Ordem de tentativa:
-
-1. conexão ainda viva;
-2. último endpoint válido;
-3. `IP:5555`, quando já validado para o alvo;
-4. descoberta mDNS `_adb-tls-connect` do alvo previamente pareado;
-5. conexão manual;
-6. novo pareamento somente quando a autenticação realmente tiver sido perdida.
-
-Requisitos:
+Regras:
 
 - uma tentativa por alvo de cada vez;
-- backoff curto e limitado;
-- estado explícito: Conectado / Reconectando / Aguardando rede / Precisa parear;
-- não apagar chave/pareamento por falha transitória;
-- manter serviço em background apenas quando houver sessão ou tarefa longa.
+- backoff limitado e observável;
+- nenhuma falha transitória apaga identidade/chave;
+- foreground service somente durante sessão/tarefa que realmente exija continuidade;
+- registrar estratégia que efetivamente conectou.
 
-### 2. Shell Session
+### 2. Device Workspace
 
-- manter sessão enquanto o transporte estiver válido;
-- se apenas o stream morrer, reabrir o stream antes de reconstruir toda conexão;
-- entrada multilinha;
-- fila serial para evitar mistura de saídas;
-- interrupção explícita de comando longo;
-- saída rolável e selecionável;
-- copiar e salvar resultado;
-- histórico local curto;
-- favoritos/scripts reutilizáveis;
-- execução sequencial de um pacote de comandos com marcação de sucesso/falha por etapa.
+Cada dispositivo conhecido pode possuir:
 
-### 3. UI CUSTOMROM
+- nome humano;
+- modelo/build/board/ABI;
+- endpoints conhecidos;
+- estratégia preferida;
+- status de pareamento;
+- último acesso;
+- sessões recentes;
+- arquivos recentes;
+- receitas favoritas;
+- tags/contexto.
 
-Home mínima:
+A TayTech é o alvo principal atual, mas a arquitetura não deve depender de um único aparelho.
 
-- alvo principal **TayTech**;
-- estado da conexão sempre visível;
-- Terminal como ação principal;
-- Arquivos como ação secundária;
-- Diagnóstico CUSTOMROM como atalho;
-- Exportar sessão como ação direta;
-- demais ferramentas existentes em **Mais**.
+### 3. Terminal Workspace
 
-Meta de UX: quando a TayTech estiver acessível, chegar ao shell conectado em **até dois toques**.
+O terminal deve ser uma ferramenta de engenharia, não apenas uma caixa de texto.
 
-### 4. Evidence Pack — integração com ChatGPT
+Recursos:
 
-O app deve conseguir transformar uma sessão técnica em um pacote pronto para compartilhar no chat.
+- sessão persistente;
+- entrada simples e multilinha;
+- executar seleção;
+- fila serial de execuções;
+- interromper execução longa;
+- timeout configurável;
+- histórico por alvo e sessão;
+- busca no histórico;
+- favoritos/snippets;
+- repetir execução;
+- timestamps opcionais;
+- saída selecionável;
+- copiar trecho ou tudo;
+- salvar saída;
+- exportar execução;
+- distinguir erro do comando de erro do transporte;
+- reabrir stream sem refazer pareamento quando possível.
 
-Formato inicial sugerido:
+### 4. Command Recipes
 
-`CUSTOMROM_SESSION_YYYY-MM-DD_HH-mm.zip`
+Receitas versionadas e independentes do terminal livre.
 
-Conteúdo:
+Cada receita contém:
 
-- `resumo.md` — alvo, horário, estado da conexão, build, comandos executados e erros;
-- `terminal.txt` — saída integral do shell;
-- `logcat.txt` — somente quando capturado;
-- `device-info.txt` — modelo/build/board/arquitetura;
-- `files-index.txt` — lista dos arquivos anexados ao pacote;
-- subpasta `attachments/` para screenshots, dumps ou relatórios selecionados.
+- identificador estável;
+- nome humano;
+- objetivo;
+- nível de risco;
+- comandos;
+- timeout;
+- arquivo de saída esperado;
+- tags;
+- possibilidade de compartilhamento/exportação.
 
-A exportação deve permitir:
-
-- **Compartilhar** pelo Android diretamente para ChatGPT/arquivos;
-- exportar só a última execução;
-- exportar uma sessão inteira;
-- gerar um Markdown humano para copiar no chat;
-- esconder automaticamente informações que não agregam valor quando possível.
+O catálogo inicial deve cobrir diagnóstico geral, memória/ZRAM, processos, armazenamento, pacotes, serviços, rede/ADB, logcat e snapshot completo.
 
 ### 5. Diagnóstico CUSTOMROM
 
-Tela de rotinas prontas, sem exigir digitação de comandos:
+Tela orientada a tarefas:
 
-- **Estado geral da central**;
-- **Memória e ZRAM**;
-- **Processos mais pesados**;
-- **Armazenamento**;
-- **Pacotes/serviços**;
-- **Log de 30 segundos**;
-- **Snapshot completo para ChatGPT**.
+- Estado geral da central;
+- Memória / ZRAM / swap;
+- CPU e processos;
+- Armazenamento;
+- Aplicativos e serviços;
+- Rede e ADB;
+- Logcat por janela de tempo;
+- Snapshot completo;
+- Inspeção de pacote selecionado;
+- Diagnóstico antes/depois.
 
-Cada rotina deve:
+A tela deve mostrar o que será coletado e o risco antes de executar.
 
-1. mostrar o que será lido;
-2. executar somente comandos do nível permitido;
-3. salvar a saída com nome humano;
-4. oferecer **Enviar/Compartilhar** imediatamente.
+### 6. Session Timeline
 
-### 6. Command Recipes
+Uma sessão é a unidade principal de investigação.
 
-Em vez de depender apenas de um terminal cru, o app terá receitas reutilizáveis:
+Registrar:
 
-- nome humano;
-- bloco de comandos;
-- nível de risco;
-- descrição do que faz;
-- pasta de saída;
-- botão executar;
-- botão exportar resultado.
+- início/fim;
+- alvo;
+- conexão e reconexões;
+- comandos;
+- saídas;
+- receitas executadas;
+- erros;
+- arquivos puxados/enviados;
+- screenshots;
+- logcat;
+- marcadores humanos;
+- observações;
+- comparação com outra sessão.
 
-Exemplos:
+### 7. Live Capture
 
-- `Fotografia inicial da central`;
-- `Memória em repouso`;
-- `Processos mais pesados`;
-- `Capturar logcat por 30 segundos`.
+Modo de reprodução de problema:
 
-As receitas CUSTOMROM devem ficar separadas de comandos livres.
+- iniciar captura;
+- coletar logs/métricas selecionadas;
+- adicionar marcadores humanos durante o problema;
+- encerrar;
+- consolidar tudo em uma sessão.
 
-## Etapas de execução
+Exemplos de marcador: abriu HVAC, interface travou, engatou ré, abriu Spotify, perdeu áudio.
 
-### Etapa 0 — referência preservada
+### 8. Compare Mode
 
-- manter APK original e hash;
-- não versionar decompilação integral proprietária;
-- versionar somente documentação, scripts próprios e patches necessários.
+Comparar duas fotografias/sessões sem reduzir a análise a “RAM livre”.
 
-### Etapa 1 — mapa cirúrgico
+Comparáveis quando disponíveis:
 
-Mapear somente:
+- MemAvailable;
+- swap/ZRAM;
+- CPU em repouso;
+- processos;
+- serviços;
+- armazenamento;
+- tempo de execução de rotina;
+- erros/logcat;
+- lista de pacotes/estado;
+- indicadores customizados da sessão.
 
-- MainActivity / fluxo de conexão;
-- MdnsSdResolver;
-- AdbDeviceHolder;
-- AdbShellRepository;
-- layouts main/shell/connect/pair/commands.
+Preservar os dados brutos ao lado dos deltas.
 
-Não auditar o app inteiro.
+### 9. File Workbench
 
-### Etapa 2 — reconexão
+A camada de arquivos existente deve ser preservada quando funcional e ampliada para evidência:
 
-- último alvo vira prioridade;
-- 5555 vira fast-path quando disponível;
-- mDNS recupera endpoint quando a porta TLS mudar;
-- retorno foreground e recuperação de Wi-Fi disparam reconexão controlada;
-- pareamento não é repetido sem necessidade.
+- pull/push;
+- checksum;
+- renomear para nome humano;
+- marcar como evidência;
+- anexar à sessão;
+- comparar arquivos de texto;
+- compartilhar;
+- salvar no workspace CUSTOMROM.
 
-### Etapa 3 — shell operacional
+### 10. APK Workbench
 
-- campo multilinha;
-- executar bloco;
-- preservar saída e histórico;
-- cancelar comando longo;
-- salvar/copiar resultado;
-- erros de transporte separados de erros do comando.
+Quando suportado pela base existente:
 
-### Etapa 4 — interface reduzida
+- listar APK/path/version;
+- pull de APK;
+- instalar APK;
+- calcular hash;
+- associar APK a uma sessão;
+- comparar metadados antes/depois.
 
-Mexer apenas em home, conexão e shell na primeira build. Recursos estáveis ficam intactos.
+Não alterar funcionalidades maduras apenas para reimplementá-las.
 
-### Etapa 5 — integração de evidência
+### 11. Logcat Workbench
 
-Adicionar:
+- captura livre;
+- captura com duração;
+- filtros salvos;
+- filtros por PID/pacote/tag;
+- marcadores da sessão;
+- detecção visual de crash/ANR quando possível;
+- salvar e anexar ao Evidence Pack.
 
-- **Exportar sessão**;
-- pacote ZIP/Markdown;
-- compartilhamento via Android;
-- atalho **Preparar para ChatGPT**;
-- primeira coleção de receitas CUSTOMROM.
+### 12. Evidence Pack / integração com análise
 
-### Etapa 6 — build e prova
+Formato portátil:
 
-Validar:
+`CUSTOMROM_SESSION_YYYYMMDDTHHMMSSZ.zip`
 
-- instalação/assinatura própria;
-- pareamento por código;
-- reconexão já pareada;
+Conteúdo mínimo:
+
+- `manifest.json`;
+- `resumo.md`;
+- `checksums.sha256`;
+- `attachments/` com terminal, logs, relatórios, screenshots e outros arquivos selecionados.
+
+Metadados:
+
+- alvo;
+- modelo/build;
+- estratégia de conexão;
+- endpoint;
+- intervalo da sessão;
+- investigação;
+- reconexões/erros;
+- lista de evidências com SHA-256.
+
+A exportação deve permitir compartilhar pelo Android, inclusive para ChatGPT, sem exigir copiar centenas de linhas.
+
+### 13. Safety Layer
+
+Classificação operacional integrada:
+
+- VERDE — somente leitura;
+- AMARELO — alteração reversível;
+- VERMELHO — estrutural/destrutivo.
+
+Receitas VERDES são validadas automaticamente contra padrões de comandos mutáveis. Para ações AMARELAS, exibir rollback quando conhecido. VERMELHO nunca deve ficar escondido atrás de uma receita genérica.
+
+### 14. Perfis/contextos
+
+Perfis de investigação podem reorganizar ações sem duplicar o motor:
+
+- desempenho;
+- aplicativo/pacote;
+- boot;
+- áudio;
+- rede/ADB;
+- CAN/automotivo;
+- customizado.
+
+### 15. Command Palette
+
+Busca única por:
+
+- comando;
+- receita;
+- sessão;
+- arquivo;
+- dispositivo;
+- ferramenta.
+
+Não substituir navegação normal; complementar usuários avançados.
+
+## Etapas de implementação
+
+### Etapa A — referência e mapa técnico
+
+- preservar APK original + SHA-256;
+- mapear apenas superfícies necessárias;
+- identificar recursos já existentes de reconexão, mDNS, shell, arquivos e preferências;
+- evitar versionar decompilação integral proprietária.
+
+### Etapa B — patch/rebuild reproduzível
+
+- localizar APK/ZIP automaticamente;
+- decodificar com Apktool;
+- aplicar patches próprios e auditáveis;
+- reconstruir;
+- alinhar;
+- assinar com chave de desenvolvimento;
+- verificar assinatura;
+- produzir relatório e hashes.
+
+### Etapa C — defaults de estabilidade
+
+Ativar por padrão, quando presentes na versão de referência:
+
+- reconexão de últimos alvos Wi-Fi;
+- autofetch de parâmetros de conexão;
+- autofetch de informações de pareamento;
+- continuidade ADB em background quando suportada.
+
+### Etapa D — conexão determinística
+
+Evoluir a lógica de reconexão para o Connection Orchestrator, sem substituir o motor ADB se não necessário.
+
+### Etapa E — terminal/sessões
+
+Transformar o shell em workspace persistente, com fila, cancelamento, histórico, saída e integração com sessão.
+
+### Etapa F — receitas e diagnóstico
+
+Integrar catálogo versionado e tela de diagnóstico.
+
+### Etapa G — Evidence Pack
+
+Portar para Android o formato já especificado e testado em Python.
+
+### Etapa H — Live Capture / Compare / workbenches
+
+Adicionar capacidades avançadas progressivamente, preservando ferramentas maduras existentes.
+
+### Etapa I — validação física
+
+Em Android real:
+
+- instalação/assinatura;
+- pareamento;
+- reconexão;
 - `:5555`;
-- fallback mDNS;
-- foreground/background;
+- mDNS;
+- background/foreground;
 - perda/retorno de Wi-Fi;
-- shell simples e multilinha;
-- comandos longos/interrupção;
-- arquivos e outras funções preservadas;
-- exportação de sessão;
-- compartilhamento de pacote;
-- crash/ANR/logcat.
+- shell;
+- receitas;
+- exportação;
+- arquivos/logcat;
+- regressões/crash/ANR.
 
-## Fora do escopo inicial
+## Gate comercial do APK de referência
 
-Não mexer sem evidência:
+O APK contém indicação de limitação comercial da versão gratuita. Esse mecanismo de terceiros não será neutralizado.
 
-- fastboot;
-- flashing;
-- screencap/server;
-- backup;
-- APK manager;
-- file manager funcional;
-- protocolo ADB nativo;
-- ROM, MCU ou CAN.
+Se ele bloquear uma capacidade necessária do produto CUSTOMROM, a solução é substituir **a menor camada funcional necessária** por implementação própria/open source e manter as demais partes úteis. O resultado final pode ser um produto nosso sem esse limite, sem depender de quebrar o mecanismo comercial original.
 
-## Critério de conclusão
+## Critério de conclusão desta fase
 
-A primeira build é considerada pronta para validação quando:
+A fase só é considerada concluída quando houver:
 
-1. preserva o pareamento;
-2. reconecta automaticamente a um alvo conhecido;
-3. usa 5555 como fast-path e mDNS como fallback;
-4. mantém ou reabre shell após interrupções pequenas;
-5. reduz o caminho até o terminal;
-6. exporta uma sessão técnica em formato pronto para compartilhar;
-7. possui ao menos uma rotina CUSTOMROM executável em um toque;
-8. não cria regressões nas funções preservadas.
+1. build reproduzível;
+2. APK assinado gerado;
+3. instalação no S23;
+4. pareamento/reconexão comprovados;
+5. sessão de shell comprovada;
+6. pelo menos uma receita executada;
+7. Evidence Pack produzido e compartilhável;
+8. ausência de regressões críticas nas superfícies preservadas;
+9. estado GitHub + Notion sincronizado.
