@@ -32,14 +32,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Apply pending contextual control v4
+      - name: Apply pending contextual control v5
         shell: bash
         run: |
           ACTIVITY='apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt'
           if grep -q 'private fun openPackageContext' "$ACTIVITY"; then
-            echo 'CONTROL_V4=ALREADY_APPLIED'
+            echo 'CONTROL_V5=ALREADY_APPLIED'
           else
-            python3 tools/apply_control_round_v4.py
+            python3 tools/apply_control_round_v5.py
           fi
 
       - name: Validate CUSTOMROM native contract
