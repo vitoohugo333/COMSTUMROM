@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "validation": "success",
+  "android_build": "success",
+  "artifact": "CUSTOMROM-ADB-S23-CONTROL-V5",
+  "apk": "CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk",
+  "apk_sha256": "bf6f2df1f236eb088b0006d5026bb2fed3bedee9ea9e49fa64b611e602c13690",
+  "recipes": 62,
+  "source_branch": "refactor/customrom-adb-s23-premium",
+  "source_commit": "e399e752cbfb7dbb76d4a0d016d4a110aaf118f7",
+  "run_id": 31243939704,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31243939704",
+  "built_at_utc": "2026-08-08T06:28:04Z"
+}
