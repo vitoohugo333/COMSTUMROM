@@ -32,6 +32,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Apply pending contextual control v3
+        shell: bash
+        run: |
+          ACTIVITY='apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt'
+          if grep -q 'private fun openPackageContext' "$ACTIVITY"; then
+            echo 'CONTROL_V3=ALREADY_APPLIED'
+          else
+            python3 tools/apply_control_round_v3.py
+          fi
+
       - name: Validate CUSTOMROM native contract
         id: validate
         continue-on-error: true
@@ -63,6 +73,25 @@ jobs:
         continue-on-error: true
         run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
+      - name: Commit verified contextual control source
+        if: steps.validate.outcome == 'success' && steps.android_build.outcome == 'success'
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt \
+            apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsModels.kt \
+            apps/customrom-adb-native/app/src/main/assets/recipes.json \
+            tools/validate_native_customrom.py
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: add contextual package control and scrollable workflows'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          else
+            echo 'VERIFIED_SOURCE_ALREADY_COMMITTED=1'
+          fi
+
       - name: Collect artifact and integrity proof
         id: collect
         if: steps.android_build.outcome == 'success'
@@ -76,7 +105,7 @@ jobs:
           cat > out/s23-premium/build-info.txt <<EOF
           product=CUSTOMROM ADB S23 Premium
           source_branch=${GITHUB_REF_NAME}
-          source_commit=${GITHUB_SHA}
+          source_commit=$(git rev-parse HEAD)
           run_id=${GITHUB_RUN_ID}
           run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           backend=com.flyfishxu:kadb:2.1.1
@@ -112,7 +141,7 @@ jobs:
             "apk": "CUSTOMROM-ADB-S23-PREMIUM-debug.apk",
             "apk_sha256": "${APK_SHA}",
             "source_branch": "${GITHUB_REF_NAME}",
-            "source_commit": "${GITHUB_SHA}",
+            "source_commit": "$(git rev-parse HEAD)",
             "run_id": ${GITHUB_RUN_ID},
             "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
             "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
