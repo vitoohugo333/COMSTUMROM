@@ -1,0 +1,81 @@
+name: Build CUSTOMROM ADB S23 premium
+
+on:
+  push:
+    branches:
+      - refactor/customrom-adb-s23-premium
+    paths:
+      - 'apps/customrom-adb-native/**'
+      - 'tools/validate_native_customrom.py'
+      - '.github/workflows/build-customrom-adb-s23-premium.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-customrom-adb-s23-premium-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Validate CUSTOMROM native contract
+        run: python3 tools/validate_native_customrom.py
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 15859902
+          packages: platform-tools
+
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Setup Gradle 9.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Build premium debug APK
+        run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
+
+      - name: Collect artifact and integrity proof
+        shell: bash
+        run: |
+          mkdir -p out/s23-premium
+          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/s23-premium/CUSTOMROM-ADB-S23-PREMIUM-debug.apk
+          sha256sum out/s23-premium/CUSTOMROM-ADB-S23-PREMIUM-debug.apk | tee out/s23-premium/sha256.txt
+          cat > out/s23-premium/build-info.txt <<EOF
+          product=CUSTOMROM ADB S23 Premium
+          source_branch=${GITHUB_REF_NAME}
+          source_commit=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
+          run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          backend=com.flyfishxu:kadb:2.1.1
+          compileSdk=36
+          targetSdk=35
+          EOF
+
+      - name: Upload S23 premium APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CUSTOMROM-ADB-S23-PREMIUM
+          path: out/s23-premium/
+          retention-days: 14
+          if-no-files-found: error
