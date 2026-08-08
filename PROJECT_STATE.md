@@ -1,150 +1,120 @@
 # Estado oficial — CUSTOMROM TAYTECH (`main`)
 
 **Atualizado em:** 2026-08-07, horário de Brasília  
-**Estado:** governança pronta; porta ADB `5555` confirmada na sessão atual; **Bloco 00 — Evoluir o cliente ADB** em execução com escopo ampliado de cockpit de engenharia.  
+**Estado:** aplicativo próprio CUSTOMROM ADB compilado e verificado; próximo gate é validação física no S23/TayTech.  
 **Papel da `main`:** linha principal de governança, documentação, evidência e ferramentas seguras.
 
-## Onde estamos
+## Estado
 
-O gargalo operacional deixou de ser tratado apenas como “melhorar alguns toques”. O objetivo agora é construir uma camada operacional potente em cima das capacidades ADB já comprovadas do APK de referência, preservando subsistemas úteis e evitando reescrita gratuita.
+A etapa de criar uma alternativa operacional própria ao fluxo manual do cliente ADB de referência chegou a uma build Android real.
 
-A porta `5555` foi configurada e o proprietário confirmou conexão. **Persistência após reboot ainda não foi provada.**
+O aplicativo nativo já possui no código e passou pela compilação com:
+
+- pareamento ADB por código;
+- identidade ADB persistente;
+- conexão direta e tentativa por `:5555`;
+- descoberta/reconexão via `_adb-tls-connect` por mDNS;
+- terminal e execução de shell;
+- classificação VERDE / AMARELO / VERMELHO;
+- receitas de diagnóstico CUSTOMROM;
+- sessão e organização de evidências;
+- geração de SHA-256;
+- exportação em ZIP;
+- compartilhamento pelo Android.
+
+Essas capacidades estão **implementadas e compiladas**, mas ainda não devem ser chamadas de PASS de integração até serem exercitadas no S23 contra a TayTech real.
 
 ## Fotografia humana atual
 
-**APK de referência mapeado + reconexão existente confirmada por evidência estática + catálogo de receitas criado + formato de Evidence Pack definido + pipeline reproduzível de decode/patch/rebuild criado + visão ampliada de cockpit registrada. A primeira APK modificada ainda não foi compilada/testada em runtime.**
+**CUSTOMROM ADB nativo compilado + artifact real baixado + integridade conferida + CI estabilizada + aprendizado fechado + Notion sincronizado. Falta instalar no S23 e provar a comunicação real com a TayTech.**
 
-## Evidência estática confirmada no APK fornecido
+## Build nativa aprovada pela CI
 
-Foram observados diretamente no artefato:
+Base conhecida e protegida:
 
-- `AdbClient` / `AdbClient2`;
-- `AdbDeviceHolder`;
-- `AdbShellRepository`;
-- `AdbCommandProcessor`;
-- `TargetConnectionsManager`;
-- `MdnsSdResolver`;
-- `_adb-tls-pairing` e `_adb-tls-connect`;
-- `saveConnectDataForReconnect`;
-- `reconnectLastWifiConnections`;
-- `handleReconnectLastWifiConnections`;
-- preferências `key.reconnect.last.wifi.targets`, `key.autofetch.connection.params`, `key.autofetch.pairing.info` e `key.start.adb.server.foreground`;
-- layouts separados para main, shell, conexão, pareamento, comandos, arquivos e logcat;
-- aviso interno de que o shell já equivale a `adb shell`;
-- gate comercial da versão gratuita confirmado por string interna — não será neutralizado.
+- Kadb `2.1.1`;
+- Coroutines `1.10.2`;
+- compileSdk `36`;
+- minSdk `29`;
+- targetSdk `35`;
+- AGP `9.3.1`;
+- Gradle `9.5.0`;
+- JDK 17.
 
-## Direção de produto
+Resultado integrado:
 
-CUSTOMROM ADB passa a ser pensado como **cockpit de engenharia Android remota**, com:
+- contrato estático: **PASS**;
+- build Android: **PASS**;
+- artifact: `CUSTOMROM-ADB-native`;
+- APK: `CUSTOMROM-ADB-native-debug.apk`;
+- SHA-256: `19a038ec37c5d2619df08cd8b928aba0a1dcb2d0284c1bab218736aa8ca0b3ae`;
+- fotografia técnica testada: `6b8581a7ded59fc13928afc110ba8bd6c38275b5`;
+- run técnico: `31234887262`.
 
-1. Device Workspace persistente;
-2. Connection Orchestrator;
-3. Terminal Workspace;
-4. Command Recipes;
-5. Session Timeline;
-6. Evidence Pack para ChatGPT/GitHub/Notion;
-7. Compare Mode antes/depois;
-8. Live Capture;
-9. File Workbench;
-10. APK Workbench enxuto;
-11. Logcat Workbench;
-12. Safety Layer VERDE/AMARELO/VERMELHO;
-13. Profiles/Contextos;
-14. Command Palette;
-15. Home adaptativa.
+O artifact foi baixado fora da GitHub Actions. O SHA-256 do APK foi recalculado e coincidiu exatamente com `sha256.txt` e com `ci/native-build-proof.json`. O contêiner do APK também passou em teste de integridade ZIP.
 
-A meta não é reduzir toques de forma literal. A meta é aumentar poder operacional, manter contexto, tornar reconexão robusta e reduzir trabalho manual inútil.
+## Aprendizado fechado
 
-## Implementação já versionada
+A sequência de builds revelou e fechou três falhas reutilizáveis:
 
-### Patch cirúrgico
+1. Kadb `2.1.3` exigia compileSdk 37, enquanto a plataforma numérica necessária não estava disponível no fluxo do runner usado;
+2. `MainActivity` usa `runBlocking` diretamente e precisava declarar Coroutines no classpath do app;
+3. builds sobrepostas podiam disputar `ci/native-build-proof.json`.
 
-`tools/bugjaeger_mod/patch_defaults.py`
+Prevenção executável:
 
-- ativa por padrão recursos já existentes de reconexão/autofetch/background quando encontrados na árvore Apktool;
-- altera somente o nome `app_name` quando localizável com segurança;
-- não toca em anúncios, premium gates ou monetização;
-- não altera o protocolo ADB.
+- `tools/validate_native_customrom.py` protege a matriz Kadb/Coroutines/SDK conhecida;
+- `.github/workflows/build-customrom-adb-native.yml` serializa builds por branch e sincroniza a `main` antes de publicar o comprovante;
+- história/evidência em `docs/incidents/2026-08-07-build-nativo-e-comprovante-concorrente.md`.
 
-### Pipeline de rebuild
+## Validação física ainda pendente
 
-`tools/bugjaeger_mod/build_mod.sh`
+A primeira prova no hardware deve cobrir, nesta ordem:
 
-- localiza APK fornecido diretamente ou dentro de ZIP;
-- preserva SHA-256 do original;
-- decodifica via Apktool;
-- aplica somente patches CUSTOMROM próprios;
-- recompila;
-- gera metadados e relatório de patch.
+1. instalar o APK no S23;
+2. abrir o app e parear a TayTech por código quando necessário;
+3. conectar e confirmar shell simples;
+4. fechar/reabrir o app e verificar reconexão sem refazer pareamento;
+5. confirmar o caminho `:5555` quando disponível;
+6. confirmar recuperação por mDNS quando aplicável;
+7. executar uma receita VERDE;
+8. gerar o pacote de evidência;
+9. compartilhar/exportar o pacote;
+10. observar crash/ANR/logcat durante o fluxo.
 
-### Workflow manual
+**Não declarar PASS físico antes dessa prova.**
 
-`.github/workflows/build-customrom-adb-mod.yml`
+## Diagnóstico da lentidão da TayTech
 
-- execução manual;
-- instala Apktool fixado em v3.0.2;
-- executa o pipeline;
-- alinha e assina a build com chave temporária de desenvolvimento;
-- verifica assinatura e SHA-256;
-- publica artefato de build por 7 dias.
+O diagnóstico de memória/processos continua sendo o objetivo seguinte do projeto, mas agora a intenção é fazê-lo pelo próprio cockpit CUSTOMROM assim que a comunicação física do novo app for comprovada.
 
-### Receitas
+Antes de desativar qualquer pacote da central, continua obrigatório obter baseline suficiente e preservar funções automotivas por presunção.
 
-`apps/customrom-adb/recipes/recipes.json`
+## Rollback
 
-Inclui inicialmente:
+Nesta etapa não houve alteração de ROM, sistema, MCU, CAN ou pacotes da TayTech.
 
-- Estado geral da central;
-- Memória, swap e ZRAM;
-- Processos mais pesados;
-- Inventário de aplicativos e pacotes;
-- Serviços Android ativos;
-- Logcat de 30 segundos;
-- Estado da rede e ADB;
-- Snapshot completo para análise.
-
-### Evidence Pack
-
-`apps/customrom-adb/schemas/evidence-pack.schema.json`
-
-Define sessão, alvo, estratégia de conexão, execuções, risco, status, arquivos e checksums em formato estruturado.
-
-### Visão ampliada
-
-`docs/VISAO_PRODUTO_CUSTOMROM_ADB.md`
-
-Registra o escopo amplo sem obrigar implementação indiscriminada.
-
-## O que ainda precisa de prova em runtime
-
-- se a preferência padrão de reconexão é suficiente para o comportamento desejado;
-- persistência real da conexão em background;
-- comportamento após retorno de Wi-Fi;
-- recuperação do shell;
-- compatibilidade da rebuild assinada com o S23;
-- pareamento após troca de assinatura/app data;
-- recursos originais preservados;
-- persistência da porta 5555 após reboot.
-
-## Limite comercial
-
-O código proprietário do APK de referência não passa a ser nosso apenas porque o modificamos. O projeto **não neutraliza gates pagos**. Se o gate impedir nosso fluxo, substituímos especificamente a camada limitada por implementação própria/open source, sem reescrever o restante por esporte.
+Se o APK nativo apresentar regressão no teste físico, o rollback imediato é simplesmente parar/remover a build de desenvolvimento do S23 e continuar usando o cliente ADB de referência enquanto a falha é corrigida.
 
 ## Notion sync
 
-**EM ATUALIZAÇÃO neste checkpoint:** Bloco 00 deve refletir o escopo ampliado, os artefatos já criados e o fato de que a build real ainda não foi executada.
+**SINCRONIZADO neste checkpoint.**
+
+Foram atualizados:
+
+- `01 — Estado Oficial`;
+- `Bloco 00 — Evoluir o cliente ADB com mínimo de mudanças`, agora em **Aguardando validação física**;
+- `05 — Registro de Alterações do Notion`, com `CR-003`;
+- banco `Aprendizados`, com a prevenção permanente da matriz de build e da concorrência do comprovante.
+
+## Ações vermelhas executadas?
+
+**Não.** Nenhum root, fastboot, flash, remount, partição, AVB, firmware, MCU ou CAN foi alterado. Nenhuma otimização ADB foi aplicada à TayTech para produzir esta build.
 
 ## Codex Engineering Guardrails
 
-`code-work` está ativo. A operação segue mudança incremental, preservação do original, rastreabilidade e verificação antes de declarar funcionalidade pronta.
-
-## Testes/CI
-
-- verificações estáticas locais do APK foram executadas por inspeção de ZIP/DEX/resources;
-- SHA-256 do APK de referência permanece `65d2e6f73a62bc5ae4cdcf9a8c9271ff0bab499eca9d9464ca37425931ba015b`;
-- pipeline de build foi criado, mas **a workflow de rebuild ainda não foi executada**;
-- não declarar APK modificada como funcional até instalação e teste real no S23/TayTech.
+`code-work` foi usado como gate desta alteração. A correção foi conduzida por reprodução do erro, causa raiz, mudança mínima, CI real, artifact real e verificação independente do hash antes de fechar o checkpoint.
 
 ## Próximo passo
 
-**Executar o workflow manual de rebuild assim que o APK/ZIP de referência for localizado pelo runner do repositório; em seguida instalar a APK assinada no S23 e validar reconexão, pareamento e regressões.**
+**Instalar `CUSTOMROM-ADB-native-debug.apk` no S23 e executar a primeira validação física controlada contra a TayTech.**
