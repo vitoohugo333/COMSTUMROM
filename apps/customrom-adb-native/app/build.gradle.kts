@@ -4,7 +4,9 @@ plugins {
 
 android {
     namespace = "com.customrom.adb"
-    compileSdk = 37
+    // Kadb 2.1.1 é a última linha upstream confirmada por fonte com compileSdk estável 36.
+    // Evitamos depender da plataforma Android 17/API 37 preview apenas para compilar o cliente ADB.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.customrom.adb"
@@ -12,8 +14,8 @@ android {
         // O alvo operacional atual é o S23; manter minSdk 29 evita um caminho legado
         // sem utilidade para este projeto e deixa a exportação determinística.
         minSdk = 29
-        // Mantemos target 35 deliberadamente. compileSdk 37 é exigido pela camada ADB,
-        // mas elevar target muda comportamento de runtime e será uma decisão separada.
+        // Mantemos target 35 deliberadamente. Elevar target muda comportamento de runtime
+        // e continua sendo uma decisão separada da versão usada apenas para compilação.
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -36,5 +38,5 @@ android {
 }
 
 dependencies {
-    implementation("com.flyfishxu:kadb:2.1.3")
+    implementation("com.flyfishxu:kadb:2.1.1")
 }
