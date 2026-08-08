@@ -75,6 +75,16 @@ def main() -> int:
     if not re.search(r"\bminSdk\s*=\s*29\b", build):
         fail("minSdk precisa permanecer 29 enquanto a exportação usar MediaStore.Downloads")
 
+    # Regressão fechada em 2026-08-07: Kadb 2.1.3 passou a exigir compileSdk 37,
+    # mas a plataforma numérica android-37 não estava disponível no sdkmanager do runner.
+    # Kadb 2.1.1 expõe as APIs usadas pelo app e declara compileSdk 36 upstream.
+    if not re.search(r"\bcompileSdk\s*=\s*36\b", build):
+        fail("compileSdk precisa permanecer 36 enquanto o backend validado for Kadb 2.1.1")
+    if 'implementation("com.flyfishxu:kadb:2.1.1")' not in build:
+        fail("backend ADB validado precisa permanecer com.flyfishxu:kadb:2.1.1")
+    if not re.search(r"\btargetSdk\s*=\s*35\b", build):
+        fail("targetSdk 35 é decisão de compatibilidade de runtime e não deve subir por efeito colateral")
+
     recipes = json.loads(RECIPES.read_text(encoding="utf-8"))
     if not isinstance(recipes, list) or len(recipes) < 5:
         fail("catálogo nativo de receitas está vazio/incompleto")
@@ -108,6 +118,9 @@ def main() -> int:
     print("persistent_adb_identity=present")
     print("mdns_reconnect=present")
     print("evidence_export=present")
+    print("adb_backend=com.flyfishxu:kadb:2.1.1")
+    print("compileSdk=36")
+    print("targetSdk=35")
     return 0
 
 
