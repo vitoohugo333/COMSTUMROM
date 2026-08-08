@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "project": "CUSTOMROM TAYTECH",
+  "recipes": [
+    {
+      "id": "estado-geral",
+      "title": "Estado geral da central",
+      "risk": "VERDE",
+      "description": "Identifica aparelho, build, board, arquitetura, memória, swap e armazenamento sem alterar o sistema.",
+      "output": "01_estado_geral_da_central.txt",
+      "commands": [
+        "date",
+        "getprop ro.product.model",
+        "getprop ro.product.manufacturer",
+        "getprop ro.build.display.id",
+        "getprop ro.hardware",
+        "getprop ro.board.platform",
+        "getprop ro.product.board",
+        "getprop ro.product.cpu.abi",
+        "cat /proc/meminfo",
+        "cat /proc/swaps",
+        "df -h"
+      ]
+    },
+    {
+      "id": "memoria-zram",
+      "title": "Memória, swap e ZRAM",
+      "risk": "VERDE",
+      "description": "Fotografa pressão de memória, swap/ZRAM e resumo do Android para investigar travamentos e lentidão.",
+      "output": "02_memoria_swap_zram.txt",
+      "commands": [
+        "cat /proc/meminfo",
+        "cat /proc/swaps",
+        "dumpsys meminfo"
+      ]
+    },
+    {
+      "id": "processos-pesados",
+      "title": "Processos mais pesados",
+      "risk": "VERDE",
+      "description": "Lista processos e uma fotografia de CPU para localizar consumidores persistentes.",
+      "output": "03_processos_mais_pesados.txt",
+      "commands": [
+        "ps -A",
+        "top -b -n 1 -o %CPU,%MEM,PID,ARGS 2>/dev/null || top -n 1"
+      ]
+    },
+    {
+      "id": "inventario-pacotes",
+      "title": "Inventário de aplicativos e pacotes",
+      "risk": "VERDE",
+      "description": "Lista pacotes instalados com caminho do APK para apoiar debloat e engenharia reversa sem desativar nada.",
+      "output": "04_inventario_de_pacotes.txt",
+      "commands": [
+        "pm list packages -f"
+      ]
+    },
+    {
+      "id": "servicos-android",
+      "title": "Serviços Android ativos",
+      "risk": "VERDE",
+      "description": "Registra serviços visíveis ao dumpsys para investigar componentes residentes e dependências OEM.",
+      "output": "05_servicos_android.txt",
+      "commands": [
+        "dumpsys activity services"
+      ]
+    },
+    {
+      "id": "logcat-30s",
+      "title": "Capturar log de 30 segundos",
+      "risk": "VERDE",
+      "description": "Limpa somente o buffer de logcat visível à sessão e captura uma janela curta para reproduzir um problema.",
+      "output": "06_logcat_30_segundos.txt",
+      "commands": [
+        "logcat -c",
+        "timeout 30 logcat -v threadtime 2>/dev/null || logcat -d -v threadtime"
+      ],
+      "note": "Se timeout não existir na ROM, o executor deve usar captura temporizada no lado cliente em vez de deixar logcat infinito."
+    },
+    {
+      "id": "rede-adb",
+      "title": "Estado da rede e ADB",
+      "risk": "VERDE",
+      "description": "Coleta interfaces, endereços e propriedades relacionadas a ADB para diagnosticar reconexão.",
+      "output": "07_rede_e_adb.txt",
+      "commands": [
+        "ip addr 2>/dev/null || ifconfig 2>/dev/null",
+        "getprop | grep -i adb",
+        "getprop | grep -i wifi"
+      ]
+    },
+    {
+      "id": "snapshot-chatgpt",
+      "title": "Snapshot completo para análise",
+      "risk": "VERDE",
+      "description": "Combina as fotografias principais em uma sessão estruturada pronta para virar Evidence Pack.",
+      "output": "snapshot_completo_customrom.txt",
+      "includes": [
+        "estado-geral",
+        "memoria-zram",
+        "processos-pesados",
+        "inventario-pacotes",
+        "rede-adb"
+      ]
+    }
+  ]
+}
