@@ -1,264 +1,165 @@
-# Estado oficial — CUSTOMROM ADB S23 Premium / Contextual Control V5 + Spotify Diagnostic v1
+# Estado oficial — CUSTOMROM ADB S23 Practical Operations V6.1
 
 **Atualizado em:** 2026-08-08 BRT  
 **Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
-**Estado:** UI premium preservada; jornadas acionáveis refinadas; controle contextual de packages compilado; catálogo com 63 receitas; diagnóstico específico do Spotify implementado e compilado; validação física desta nova fotografia pendente.
+**Estado:** implementação, validador, build e artifacts PASS; validação física S23 → TayTech pendente.  
+**Fonte validada:** `d0fa9f0caafd089774b45f524e9a32b51c72e6d7`  
+**CI final:** run `31281894532`
 
-## Norte atual
+## Topologia oficial
 
-O Galaxy S23 é o controlador e a TayTech é o alvo remoto por Wireless ADB.
+O **Galaxy S23 é o controlador**. A **TayTech é o alvo remoto** por ADB/Wi‑Fi. A UI premium aprovada no S23 continua sendo a superfície principal.
 
-A UI visual aprovada não será redesenhada nesta fase. O foco é **premium operacional**:
+A regra operacional é:
 
-`INTENÇÃO → COLETA → INTERPRETAÇÃO → OBJETOS ACIONÁVEIS → AÇÃO HUMANA → VERIFICAÇÃO → HISTÓRICO/ROLLBACK`
+`INTENÇÃO HUMANA → COLETA ÚNICA → INTERPRETAÇÃO → AÇÃO NO PRÓPRIO APP → VERIFICAÇÃO → HISTÓRICO/ROLLBACK`
 
-Log bruto continua preservado, mas é evidência secundária quando existe uma próxima ação natural.
+Terminal serve como bancada de descoberta; rotina útil deve virar fluxo do CUSTOMROM.
 
-## Feedback físico que originou o V5
+## Contratos fixos desta fotografia
 
-O proprietário validou a build anterior no S23 e encontrou:
+### ÔMEGAS
 
-1. `O que inicia junto com a central` encontrou 45 packages, porém o modal não permitia alcançar todo o conteúdo por scroll vertical;
-2. tocar em um package fechava o contexto e navegava automaticamente para Apps;
-3. o classificador tratava função automotiva relevante como veto de ação — o proprietário quer decidir conscientemente quando usar `pm disable-user --user 0`;
-4. o catálogo ainda podia ser ampliado com diagnósticos/observabilidade úteis.
+`com.omegas.v7.test` é carga obrigatória do proprietário.
 
-## Interação contextual nova
+- pode aparecer em evidência bruta;
+- fica **PROTECTED**;
+- é excluído automaticamente dos rankings e sugestões de otimização/debloat;
+- nunca recebe sugestão de force-stop ou disable.
 
-### Resultados longos
+### Launchers
 
-- `premiumDialog` usa `ScrollView` vertical com viewport controlada;
-- resultado acionável pode exibir até 64 próximas ações;
-- filtros da área Apps usam `HorizontalScrollView` real.
+- `ginlemon.flowerfree` = **Smart Launcher escolhido pelo proprietário** → PROTECTED;
+- `com.jancar.launcher` = **launcher OEM TayTech** → HIGH, analisável e controlável de forma reversível após confirmar HOME atual.
 
-### Package sem vai-e-vem
+`PROTECTED` continua reservado a itens que podem eliminar o próprio caminho de recuperação/controle. Criticidade alta não é prisão: ação avançada AMARELA continua possível quando reversível e explicitamente confirmada.
 
-`ActionDestination.PACKAGE` abre `openPackageContext()`.
+## Operação pragmática V6.1
 
-Se o package já está no inventário, abre detalhe imediatamente. Caso contrário, o CUSTOMROM coleta somente o necessário daquele alvo:
+A área de comandos expõe fluxos humanos de alto valor:
 
-- `pm path`;
-- estado disabled;
-- `pidof`;
-- `dumpsys package` limitado.
+### Analisar e enxugar a central
 
-O detalhe abre por cima da jornada. Fechar retorna ao relatório anterior, preservando contexto e posição.
+Uma única execução cruza:
 
-O detalhe oferece, conforme estado:
+- CPU e processos;
+- RAM e ZRAM;
+- HOME atual;
+- WebView e contexto;
+- Google App e Google Drive;
+- packages relevantes;
+- tempestade de logs WOBLE.
 
-- criticidade, confiança e razões;
-- enabled/disabled/running;
-- **Analisar com mais evidência**;
-- **Parar temporariamente**;
-- **Desativar para usuário 0**;
-- **Ativar para usuário 0 / Restaurar**;
-- logs recentes do package;
-- abrir app na TayTech.
+O resultado não termina em dump: abre packages, filtros e diagnósticos correlatos como próximas ações.
 
-`Analisar com mais evidência` volta ao detalhe humano atualizado; não termina em dump técnico.
+Nenhuma desativação em lote é automática. Mudanças são feitas uma por vez para preservar causalidade.
 
-## Autonomia e segurança — regra corrigida
+### Tempestade WOBLE
 
-**Criticidade não é veto.**
+Existe diagnóstico dedicado para medir volume/contexto de `WOBLE` sem desligar automaticamente Bluetooth, wireless ou drivers automotivos.
 
-Packages com sinais automotivos como rádio, CAN, MCU, HVAC, câmera, DSP, reverse etc. recebem criticidade **ALTA** e aviso de consequência, mas continuam podendo receber controle manual reversível no usuário 0.
+### ADB após reinício
 
-O mesmo vale para packages em `/vendor` ou `/odm`: ALTA, não proibição automática.
+O fluxo próprio lê em uma execução:
 
-`PROTEGIDO` fica reservado ao núcleo Android/ADB/recovery conhecido em que desativar pode eliminar o próprio caminho de recuperação, incluindo exemplos como shell, SystemUI, Settings, PackageInstaller, PermissionController, network stack e famílias de hardware explicitamente protegidas.
+- `adb_enabled`;
+- `adb_wifi_enabled`;
+- `service.adb.tcp.port`;
+- `persist.adb.tcp.port`;
+- estado do `adbd`;
+- presença/permissão do CUSTOMROM Agent;
+- disponibilidade de rollback.
 
-Não existe desativação automática.
+A tentativa AMARELA salva rollback antes de tentar manter ADB/Wireless ativos e persistir `5555`. Ela não reinicia deliberadamente o daemon durante o próprio caminho de controle.
 
-### Escrita reversível
+## CUSTOMROM Agent
 
-- disable: `pm disable-user --user 0 <pkg>`;
-- enable: `pm enable --user 0 <pkg>`;
-- ambas continuam AMARELAS e exigem confirmação explícita;
-- após disable, o CUSTOMROM verifica `pm list packages -d`;
-- após enable, confirma que o package não permanece na lista disabled;
-- ChangeLedger registra a alteração e rollback conhecido.
+Companion Android: `com.customrom.agent`.
 
-## Catálogo de receitas
+Objetivo: fallback local na TayTech quando a ROM desligar Wireless Debugging após boot.
 
-Catálogo ampliado de **44 para 63** rotinas, preservando as anteriores.
+Capacidades:
 
-Capacidades incluem:
+- receiver de `BOOT_COMPLETED` e `LOCKED_BOOT_COMPLETED`;
+- tentativa de manter `ADB_ENABLED=1` e `adb_wifi_enabled=1`;
+- usa `WRITE_SECURE_SETTINGS` quando a ROM concede essa permissão;
+- tela local mínima com ação **Ativar ADB agora**;
+- não toca em MCU, CAN, firmware, root, remount ou AVB.
 
-- foreground/persistent services;
-- AppOps;
-- batterystats por apps;
-- UsageStats;
-- device-idle whitelist;
-- launchers HOME;
-- WebView provider;
-- localização/GNSS;
-- sensores;
-- câmera;
-- processos/OOM;
-- netstats;
-- device policy;
-- notificações/listeners;
-- origem/installer dos packages;
-- limites de background;
-- Ethernet;
-- data/timezone;
-- **Por que o Spotify está lento?**.
+### Instalação absorvida pelo app S23
 
-`FunctionalActionEngine.kt` liga as coletas a packages contextuais, filtros, diagnósticos correlatos e próximas ações. A expansão não é apenas um catálogo maior de dumps.
+O APK do Agent é gerado primeiro e embutido em `assets/CUSTOMROM-Agent-TayTech-debug.apk` dentro do APK principal.
 
-## Spotify Performance Diagnostic v1
+Quando o companion não existe na TayTech, o próprio CUSTOMROM oferece:
 
-### Pergunta de produto
+**Instalar CUSTOMROM Agent**
 
-`Por que o Spotify está lento? É arquitetura incompatível ou gargalo da central?`
+O fluxo:
 
-### Evidência estática já confirmada
+1. extrai o APK embutido para cache no S23;
+2. instala remotamente usando Kadb pela conexão ADB atual;
+3. tenta conceder `WRITE_SECURE_SETTINGS`;
+4. envia `com.customrom.agent.APPLY`;
+5. relê o estado e apresenta o resultado humano.
 
-APK analisado:
+Não é necessário transferir manualmente o APK do Agent para a TayTech.
 
-- package: `com.spotify.music`;
-- versionName: `9.1.72.1891`;
-- versionCode: `144716725`;
-- minSdk: `24`;
-- targetSdk: `37`;
-- primaryCpuAbi observada: `armeabi-v7a`;
-- SHA-256 do APK fornecido: `a347eac03923a63793bcfe0e179ab0a021490ac54fa541846ad0bdd10e0b4ae3`.
+## Segurança e rollback
 
-TayTech observada nos dumps:
+- nenhuma ação automotiva destrutiva automática;
+- nenhuma alteração de `main`;
+- nenhum merge/release nesta fotografia;
+- force-stop/disable/enable continuam explícitos;
+- ações AMARELAS exigem confirmação;
+- `pm disable-user --user 0` mantém rollback por `pm enable --user 0`;
+- tentativa de persistência ADB salva script de restauração em `/storage/emulated/0/CUSTOMROM/experimentos/adb_persistencia_rollback.sh`;
+- ChangeLedger e sessões preservam evidência operacional.
 
-- plataforma: `rk3326`;
-- ABI: `armeabi-v7a`;
-- abilist: `armeabi-v7a,armeabi`;
-- abilist64 vazia;
-- `ro.build.version.release=13`;
-- `ro.build.version.sdk=30`;
-- RAM total aproximada: 4 GiB.
+## Evidência de build final
 
-**Conclusão estática:** a ABI instalada do Spotify é compatível com a ABI oferecida pela central. A lentidão não deve ser atribuída a “APK de arquitetura errada” sem nova evidência.
+Artifact: `CUSTOMROM-ADB-S23-PRACTICAL-V6.1`
 
-### Aprendizados técnicos fixados
+### APK principal S23
 
-1. **ABI compatível não implica desempenho adequado.** A causa pode ser contenção de CPU/RAM, renderização, áudio, framework OEM ou serviços concorrentes.
-2. `SIGQUIT`/Signal Catcher provocado por `dumpstate` **não é ANR**. ANR só deve ser afirmado com evidência explícita de ANR.
-3. Duração total de ciclo de GC **não é igual à pausa stop-the-world da UI**. Em captura real houve ciclo total de ~651,9 ms com campo `paused` na ordem de microssegundos.
-4. `am_kill` descrito como processo `empty` por longo período é reclaim de background; **não prova crash**.
-5. Uma fotografia com outro app ou GMS consumindo CPU prova contenção do ambiente naquela janela; não prova culpa exclusiva do Spotify.
+`CUSTOMROM-ADB-S23-PRACTICAL-V6.1-debug.apk`
 
-### Nova receita VERDE
+SHA-256:
+`018bb78c27697f045e1a5706badebe5b8d83e1c2603d6e3f322185d55a5ea338`
 
-ID: `spotify-diagnostico`  
-Nome humano: **Por que o Spotify está lento?**  
-Saída: `63_spotify_diagnostico.txt`
+### APK Agent TayTech
 
-A coleta é somente leitura e cruza:
+`CUSTOMROM-Agent-TayTech-debug.apk`
 
-- versão, SDKs e ABI do Spotify;
-- release/SDK/security patch/ABI da TayTech;
-- PID e `dumpsys meminfo` do Spotify;
-- RAM e swap/ZRAM;
-- CPU do Spotify, Google Play Services, `system_server`, `surfaceflinger` e `audioserver`;
-- `dumpsys gfxinfo com.spotify.music`;
-- áudio, foco, A2DP e MediaSession;
-- `activity exit-info`;
-- thermal;
-- logcat recente filtrado por Spotify, codecs, áudio, LMK, Choreographer e A2DP.
+SHA-256:
+`a24a5084555351c0d7aeca4b35f6a2620d60b4dad36c361ee06a24c9add05734`
 
-Nenhuma limpeza de cache, force-stop, troca de APK, disable, alteração do GMS ou ajuste de sistema é executado automaticamente.
+### Provas independentes
 
-### Interpretação acionável
+- validator: PASS;
+- Android build: PASS;
+- source promotion: PASS;
+- artifact upload: PASS;
+- ambos os APKs passaram no teste de integridade ZIP;
+- o Agent embutido no APK S23 tem exatamente o mesmo SHA-256 do Agent standalone;
+- `agent/build/` foi removido da fonte versionada e `agent/.gitignore` contém `/build/`.
 
-`spotifyReport(raw)` separa:
+## Gate físico ainda aberto
 
-- ABI compatível/incompatível;
-- framework não padrão;
-- pressão de RAM/swap;
-- concorrência de CPU;
-- janky frames;
-- GC sem confundir total com pausa;
-- crash/ANR somente por padrões explícitos;
-- reclaim de processo vazio;
-- indícios de desconexão A2DP.
+CI não prova comportamento da ROM real.
 
-Depois oferece:
+Próxima validação no aparelho:
 
-- abrir detalhe do Spotify;
-- investigar Google Play Services;
-- cruzar CPU;
-- cruzar áudio;
-- cruzar renderização;
-- ver crashes/ANRs;
-- repetir a captura com o Spotify aberto durante o sintoma.
+1. instalar o APK V6.1 no S23;
+2. conectar à TayTech normalmente;
+3. executar **ADB após reinício**;
+4. se o app indicar Agent ausente, usar **Instalar CUSTOMROM Agent** no próprio fluxo;
+5. confirmar o estado apresentado;
+6. reiniciar a TayTech;
+7. observar se Wireless ADB volta e se o S23 reconecta por `:5555` ou mDNS;
+8. validar Smart Launcher, câmera, CAN, áudio e Bluetooth sem regressões.
 
-## Evidência automatizada do Spotify Diagnostic
+Até esse teste, o status correto é **Aguardando validação física**.
 
-Implementação persistida na branch:
+## Histórico
 
-- apply script: `tools/apply_spotify_diagnostic.py`;
-- workflow: `.github/workflows/build-customrom-adb-s23-premium.yml`;
-- source gerado e persistido após gate: `674082197509a7eefa0a15dba486f6288aaa600e`;
-- catálogo após aplicação: **63 receitas**;
-- marcador de build: `spotify-performance-diagnostic-v1` em `7f6d22048c0274774aa34e7a864bb72bb8cc690a`.
-
-O workflow só persiste `FunctionalActionEngine.kt` e `recipes.json` no passo de source verificado quando `validate_native_customrom.py` e `:app:assembleDebug` têm resultado `success`. Portanto, o commit gerado `674082...` é evidência direta de que o código novo atravessou ambos os gates antes de ser salvo na branch.
-
-O comprovante `ci/contextual-control-v5-proof.json` ainda aponta para a fotografia anterior de 62 receitas no instante desta atualização; por isso nenhum SHA de APK novo foi inventado ou promovido como final. O código do diagnóstico está compilado; a fotografia de artifact/hash específica desta rodada deve ser considerada separada do artifact V5 anterior.
-
-## Evidência automatizada anterior do Contextual Control V5
-
-Fotografia anterior compilada:
-
-- source: `724312d8cc0e4eed810890df930b6a30ff3d6a8c`;
-- run: `31244058225`;
-- validation: **PASS**;
-- Android build / `assembleDebug`: **PASS**;
-- artifact: `CUSTOMROM-ADB-S23-PREMIUM`;
-- APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
-- SHA-256: `3f766dda89f90fe9ae0f64101e6cdaa41aca0aa750cf59f7ba309d6d03863732`.
-
-Esse artifact é evidência da fotografia V5 anterior e não deve ser confundido com a nova receita Spotify.
-
-## Incidente permanente
-
-Documento: `docs/incidents/2026-08-08-spotify-performance-rk3326.md`.
-
-O incidente registra evidência, falsos positivos corrigidos, contrato da nova receita e gate físico de fechamento para que futuros agentes não voltem a concluir “ABI incompatível”, “SIGQUIT = ANR” ou “GC total = pausa de UI” sem evidência.
-
-## Skills destiladas
-
-Referências externas usadas anteriormente somente como matéria-prima:
-
-- `haowu77/android-adb-skill`: observar → agir → verificar e preservar contexto;
-- `wesleydonk/ai-skill-android-logcat`: log filtrado por package/PID, saída delimitada e warnings;
-- `songhuiming2007-coder/android-audit`: inventário → classificação → escolha humana → ação user 0 → verificação → restauração.
-
-Listas/regras genéricas dessas skills não substituem AGENTS, Notion, evidência TayTech nem instrução do proprietário.
-
-## Blueprint
-
-**CONGELADO por decisão explícita do proprietário.** Não atualizar sem nova autorização. Aprendizados operacionais vão para bloco ativo, Estado Oficial, Registro de Alterações e este PROJECT_STATE.
-
-## Limites preservados
-
-Nesta rodada não houve:
-
-- alteração da `main`;
-- merge ou PR;
-- release/deploy;
-- instalação automática;
-- desativação física automática na TayTech;
-- limpeza de dados/cache do Spotify;
-- alteração física do Google Play Services;
-- root/remount/AVB/flash;
-- alteração de ROM, MCU ou firmware CAN.
-
-## Próximo gate físico
-
-No S23 → TayTech:
-
-1. abrir o Spotify e reproduzir a lentidão real;
-2. executar **Por que o Spotify está lento?** durante o sintoma;
-3. confirmar se o resultado detecta corretamente ABI, CPU, memória, renderização, áudio e eventos recentes;
-4. usar as ações de correlação sem sair da jornada;
-5. exportar a sessão/Evidence Pack;
-6. somente com essa evidência decidir se vale mexer em GMS, versão do Spotify ou outro componente;
-7. manter qualquer ação que altere estado como AMARELA, explícita e reversível.
+Detalhes de V5, Spotify Diagnostic e incidentes anteriores permanecem documentados no Notion oficial e em `docs/incidents/`; não devem substituir esta fotografia atual.
