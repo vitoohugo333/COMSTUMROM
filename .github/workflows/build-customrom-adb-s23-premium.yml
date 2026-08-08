@@ -32,6 +32,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Mark V6.1 run started
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mkdir -p ci
+          cat > ci/practical-ops-v61-live.json <<EOF
+          {
+            "status": "RUNNING",
+            "source_branch": "${GITHUB_REF_NAME}",
+            "input_commit": "$(git rev-parse HEAD)",
+            "run_id": ${GITHUB_RUN_ID},
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "started_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          git add ci/practical-ops-v61-live.json
+          git commit -m 'ci: mark practical V6.1 run started [skip ci]'
+          git push origin HEAD:${GITHUB_REF_NAME}
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -57,11 +77,14 @@ jobs:
         run: python3 tools/apply_practical_ops_v6.py
 
       - name: Apply one-tap Agent installer v6.1
+        id: apply_v61
+        continue-on-error: true
         shell: bash
         run: python3 tools/apply_agent_installer_v61.py
 
       - name: Validate CUSTOMROM native contract
         id: validate
+        if: steps.apply_v61.outcome == 'success'
         continue-on-error: true
         run: python3 tools/validate_native_customrom.py
 
@@ -94,6 +117,7 @@ jobs:
       - name: Commit verified practical V6.1 source
         id: source_commit
         if: steps.validate.outcome == 'success' && steps.android_build.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
@@ -114,13 +138,15 @@ jobs:
             git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           else
+            git pull --rebase origin ${GITHUB_REF_NAME}
             echo 'VERIFIED_SOURCE_ALREADY_COMMITTED=1'
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Collect artifacts and integrity proof
         id: collect
-        if: steps.android_build.outcome == 'success'
+        if: steps.android_build.outcome == 'success' && steps.source_commit.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           mkdir -p out/practical-v61
@@ -146,7 +172,9 @@ jobs:
           EOF
 
       - name: Upload practical V6.1 artifacts
-        if: steps.android_build.outcome == 'success'
+        id: upload
+        if: steps.collect.outcome == 'success'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: CUSTOMROM-ADB-S23-PRACTICAL-V6.1
@@ -157,48 +185,64 @@ jobs:
       - name: Publish isolated V6.1 proof
         if: always()
         env:
+          APPLY_OUTCOME: ${{ steps.apply_v61.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
+          SOURCE_OUTCOME: ${{ steps.source_commit.outcome }}
+          COLLECT_OUTCOME: ${{ steps.collect.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
           APP_SHA: ${{ steps.collect.outputs.app_sha }}
           AGENT_SHA: ${{ steps.collect.outputs.agent_sha }}
         shell: bash
         run: |
-          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
+          if [ "$APPLY_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ] && [ "$SOURCE_OUTCOME" = "success" ] && [ "$COLLECT_OUTCOME" = "success" ] && [ "$UPLOAD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
+          git reset --hard HEAD
+          git clean -fd
+          git pull --rebase origin ${GITHUB_REF_NAME}
           mkdir -p ci
+          rm -f ci/practical-ops-v61-live.json
           cat > ci/practical-ops-v61-proof.json <<EOF
           {
             "status": "${STATUS}",
+            "apply_v61": "${APPLY_OUTCOME}",
             "validation": "${VALIDATE_OUTCOME}",
             "android_build": "${BUILD_OUTCOME}",
+            "source_commit_step": "${SOURCE_OUTCOME}",
+            "collect": "${COLLECT_OUTCOME}",
+            "upload": "${UPLOAD_OUTCOME}",
             "artifact": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1",
             "app_apk": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1-debug.apk",
             "app_sha256": "${APP_SHA}",
             "agent_apk": "CUSTOMROM-Agent-TayTech-debug.apk",
             "agent_sha256": "${AGENT_SHA}",
             "agent_embedded": true,
-            "recipes": $(python3 -c 'import json; print(len(json.load(open("apps/customrom-adb-native/app/src/main/assets/recipes.json"))))'),
             "source_branch": "${GITHUB_REF_NAME}",
             "source_commit": "$(git rev-parse HEAD)",
             "run_id": ${GITHUB_RUN_ID},
             "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
-            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            "finished_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin ${GITHUB_REF_NAME}
-          git add ci/practical-ops-v61-proof.json
-          if ! git diff --cached --quiet; then
-            git commit -m "ci: record practical operations v6.1 ${STATUS}"
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
+          git add ci/practical-ops-v61-live.json ci/practical-ops-v61-proof.json
+          git commit -m "ci: record practical operations v6.1 ${STATUS} [skip ci]"
+          git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Enforce build result
         if: always()
         env:
+          APPLY_OUTCOME: ${{ steps.apply_v61.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
+          SOURCE_OUTCOME: ${{ steps.source_commit.outcome }}
+          COLLECT_OUTCOME: ${{ steps.collect.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
         shell: bash
         run: |
+          test "$APPLY_OUTCOME" = "success"
           test "$VALIDATE_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
+          test "$SOURCE_OUTCOME" = "success"
+          test "$COLLECT_OUTCOME" = "success"
+          test "$UPLOAD_OUTCOME" = "success"
