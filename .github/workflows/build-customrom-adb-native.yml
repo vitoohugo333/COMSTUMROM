@@ -37,13 +37,16 @@ jobs:
       - name: Android SDK
         if: steps.validate.outcome == 'success'
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 15859902
+          packages: platform-tools
 
       - name: Install Android API 37
         if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+          sdkmanager --channel=3 'platforms;android-37' 'build-tools;36.0.0'
 
       - name: Setup Gradle
         if: steps.validate.outcome == 'success'
