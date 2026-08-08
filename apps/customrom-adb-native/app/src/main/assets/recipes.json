@@ -194,5 +194,117 @@
     "risk": "VERDE",
     "command": "echo '=== MEMORIA RESUMO ==='; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo; echo '=== CPU TOP ==='; dumpsys cpuinfo 2>/dev/null | head -n 80; echo; echo '=== TOP PROCESSOS ==='; top -b -n 1 -m 25 2>/dev/null || top -n 1; echo; echo '=== DISCO ==='; df -h; echo; echo '=== THERMAL ==='; dumpsys thermalservice 2>/dev/null | head -n 100",
     "output": "28_diagnostico_lentidao.txt"
+  },
+  {
+    "id": "wakelocks-alarmes",
+    "name": "Wakelocks e alarmes que acordam a central",
+    "risk": "VERDE",
+    "command": "echo '=== WAKE LOCKS ==='; dumpsys power 2>/dev/null | grep -i -A80 -E 'Wake Locks|mWakefulness|mHolding' | head -n 180; echo; echo '=== ALARMS ==='; dumpsys alarm 2>/dev/null | head -n 320",
+    "output": "29_wakelocks_alarmes.txt"
+  },
+  {
+    "id": "jobs-agendados",
+    "name": "Jobs agendados em segundo plano",
+    "risk": "VERDE",
+    "command": "echo '=== JOBSCHEDULER ==='; dumpsys jobscheduler 2>/dev/null | head -n 420",
+    "output": "30_jobs_agendados.txt"
+  },
+  {
+    "id": "falhas-crashes",
+    "name": "Histórico de crashes e ANRs",
+    "risk": "VERDE",
+    "command": "echo '=== CRASH BUFFER ==='; logcat -b crash -d -v threadtime -t 400 2>/dev/null; echo; echo '=== DROPBOX CRASH ==='; dumpsys dropbox --print system_app_crash 2>/dev/null | tail -n 260; echo; echo '=== DROPBOX ANR ==='; dumpsys dropbox --print system_app_anr 2>/dev/null | tail -n 260",
+    "output": "31_crashes_anr.txt"
+  },
+  {
+    "id": "overlays-status",
+    "name": "Temas e overlays ativos",
+    "risk": "VERDE",
+    "command": "echo '=== OVERLAYS ==='; cmd overlay list --user 0 2>/dev/null; echo; echo '=== FABRICATED ==='; cmd overlay list 2>/dev/null | head -n 260",
+    "output": "32_overlays.txt"
+  },
+  {
+    "id": "input-devices",
+    "name": "Teclas, touch e dispositivos de entrada",
+    "risk": "VERDE",
+    "command": "echo '=== INPUT ==='; dumpsys input 2>/dev/null | head -n 420; echo; echo '=== INPUT METHOD ==='; dumpsys input_method 2>/dev/null | head -n 220",
+    "output": "33_input_devices.txt"
+  },
+  {
+    "id": "launcher-defaults",
+    "name": "Launcher e aplicativos padrão",
+    "risk": "VERDE",
+    "command": "echo '=== HOME RESOLVIDA ==='; cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null; echo; echo '=== PREFERRED ==='; dumpsys package preferred-activities 2>/dev/null | head -n 320; echo; echo '=== ROLE ==='; dumpsys role 2>/dev/null | head -n 180",
+    "output": "34_launcher_defaults.txt"
+  },
+  {
+    "id": "rede-proxy-dns",
+    "name": "DNS, proxy e conectividade",
+    "risk": "VERDE",
+    "command": "echo '=== PROXY ==='; settings get global http_proxy; echo '=== PRIVATE DNS ==='; settings get global private_dns_mode; settings get global private_dns_specifier; echo; echo '=== CONNECTIVITY ==='; dumpsys connectivity 2>/dev/null | head -n 360",
+    "output": "35_dns_proxy_conectividade.txt"
+  },
+  {
+    "id": "acessibilidade-input",
+    "name": "Acessibilidade e teclado ativos",
+    "risk": "VERDE",
+    "command": "echo '=== ACCESSIBILITY ENABLED ==='; settings get secure accessibility_enabled; settings get secure enabled_accessibility_services; echo; echo '=== IME ==='; settings get secure default_input_method; ime list -s 2>/dev/null; echo; echo '=== NOTIFICATION LISTENERS ==='; settings get secure enabled_notification_listeners",
+    "output": "36_acessibilidade_input.txt"
+  },
+  {
+    "id": "usb-status",
+    "name": "USB, acessórios e funções atuais",
+    "risk": "VERDE",
+    "command": "echo '=== USB ==='; dumpsys usb 2>/dev/null | head -n 360; echo; echo '=== USB PROPS ==='; getprop | grep -i -E 'usb|mtp' | head -n 100",
+    "output": "37_usb_status.txt"
+  },
+  {
+    "id": "seguranca-boot",
+    "name": "SELinux, Verified Boot e integridade",
+    "risk": "VERDE",
+    "command": "echo '=== SELINUX ==='; getenforce 2>/dev/null; echo; echo '=== VERIFIED BOOT ==='; getprop ro.boot.verifiedbootstate; getprop ro.boot.flash.locked; getprop ro.boot.vbmeta.device_state; getprop ro.boot.veritymode; echo; echo '=== SECURITY PATCH ==='; getprop ro.build.version.security_patch",
+    "output": "38_seguranca_boot.txt"
+  },
+  {
+    "id": "abrir-configuracoes",
+    "name": "Abrir Configurações Android na TayTech",
+    "risk": "AMARELO",
+    "command": "am start -a android.settings.SETTINGS; echo 'Tela de Configurações solicitada'",
+    "output": "39_abrir_configuracoes.txt"
+  },
+  {
+    "id": "abrir-wifi",
+    "name": "Abrir configurações de Wi‑Fi na TayTech",
+    "risk": "AMARELO",
+    "command": "am start -a android.settings.WIFI_SETTINGS; echo 'Tela de Wi-Fi solicitada'",
+    "output": "40_abrir_wifi.txt"
+  },
+  {
+    "id": "abrir-bluetooth",
+    "name": "Abrir configurações de Bluetooth na TayTech",
+    "risk": "AMARELO",
+    "command": "am start -a android.settings.BLUETOOTH_SETTINGS; echo 'Tela de Bluetooth solicitada'",
+    "output": "41_abrir_bluetooth.txt"
+  },
+  {
+    "id": "abrir-apps",
+    "name": "Abrir lista de aplicativos do Android",
+    "risk": "AMARELO",
+    "command": "am start -a android.settings.APPLICATION_SETTINGS; echo 'Tela de aplicativos solicitada'",
+    "output": "42_abrir_apps.txt"
+  },
+  {
+    "id": "home-remoto",
+    "name": "Ir para a Home da TayTech",
+    "risk": "AMARELO",
+    "command": "input keyevent KEYCODE_HOME; echo 'Comando Home enviado'",
+    "output": "43_home_remoto.txt"
+  },
+  {
+    "id": "voltar-remoto",
+    "name": "Voltar uma tela na TayTech",
+    "risk": "AMARELO",
+    "command": "input keyevent KEYCODE_BACK; echo 'Comando Voltar enviado'",
+    "output": "44_voltar_remoto.txt"
   }
 ]
