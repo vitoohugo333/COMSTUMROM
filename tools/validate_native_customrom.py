@@ -29,10 +29,15 @@ MUTATING = [
     r"\bpm\s+enable",
     r"\bpm\s+uninstall",
     r"\bam\s+force-stop",
+    r"\bam\s+start",
+    r"\bam\s+broadcast",
     r"\bsettings\s+put",
     r"\bpm\s+clear",
     r"\bsvc\s+",
     r"\bsetprop\s+",
+    r"\binput\s+keyevent",
+    r"\binput\s+tap",
+    r"\binput\s+swipe",
     r"\buiautomator\s+dump",
     r"\brm\s+-",
     r"\bfastboot\b",
@@ -78,6 +83,7 @@ REQUIRED_MODEL_SIGNALS = [
     "candidateForReversibleTest",
     "wasDisabledByCustomrom",
     "Nenhum texto foi retornado pelo comando",
+    "Tempo esgotado",
 ]
 
 REQUIRED_CONTROLLER_SIGNALS = [
@@ -87,6 +93,9 @@ REQUIRED_CONTROLLER_SIGNALS = [
     "connectionCheck()",
     "resetConnection()",
     "linkedSetOf(5555, savedPort)",
+    "45_000L",
+    "TimeoutException",
+    "newSingleThreadScheduledExecutor",
 ]
 
 
@@ -149,10 +158,9 @@ def main() -> int:
     if 'android:name=".CustomromApp"' not in manifest:
         fail("CustomromApp não está registrado no AndroidManifest")
 
-    if "rm -rf" not in premium_models_src or "setenforce 0" not in premium_models_src:
-        fail("classificador premium não contém proteções ampliadas para shell estrutural")
-    if "uiautomator dump" not in premium_models_src:
-        fail("classificador premium precisa reconhecer interação/dump temporário como ação ativa")
+    for signal in ("rm -rf", "setenforce 0", "uiautomator dump", "am start", "input keyevent"):
+        if signal not in premium_models_src:
+            fail(f"classificador premium não contém proteção ativa para: {signal}")
 
     if not re.search(r"\bminSdk\s*=\s*29\b", build):
         fail("minSdk precisa permanecer 29 enquanto a exportação usar MediaStore.Downloads")
@@ -166,8 +174,8 @@ def main() -> int:
         fail("targetSdk 35 é decisão de compatibilidade de runtime e não deve subir por efeito colateral")
 
     recipes = json.loads(RECIPES.read_text(encoding="utf-8"))
-    if not isinstance(recipes, list) or len(recipes) < 24:
-        fail("catálogo premium de receitas precisa manter pelo menos 24 rotinas úteis")
+    if not isinstance(recipes, list) or len(recipes) < 40:
+        fail("catálogo premium expandido precisa manter pelo menos 40 rotinas úteis")
 
     ids: set[str] = set()
     for recipe in recipes:
@@ -203,18 +211,26 @@ def main() -> int:
         "animacoes-on",
         "rotacao-auto-on",
         "rotacao-auto-off",
+        "wakelocks-alarmes",
+        "jobs-agendados",
+        "falhas-crashes",
+        "overlays-status",
+        "input-devices",
+        "launcher-defaults",
+        "rede-proxy-dns",
+        "seguranca-boot",
+        "abrir-configuracoes",
+        "home-remoto",
     }
     missing = required_recipes - ids
     if missing:
         fail(f"receitas premium obrigatórias ausentes: {sorted(missing)}")
 
     recipe_map = {recipe["id"]: recipe for recipe in recipes}
-    if recipe_map["ui-hierarchy"]["risk"] != "AMARELO":
-        fail("ui-hierarchy grava arquivo temporário e deve permanecer AMARELO")
-    for rid in ("animacoes-off", "animacoes-on", "rotacao-auto-on", "rotacao-auto-off"):
+    for rid in ("ui-hierarchy", "animacoes-off", "animacoes-on", "rotacao-auto-on", "rotacao-auto-off", "abrir-configuracoes", "abrir-wifi", "abrir-bluetooth", "abrir-apps", "home-remoto", "voltar-remoto"):
         if recipe_map[rid]["risk"] != "AMARELO":
-            fail(f"personalização reversível {rid} precisa permanecer AMARELA")
-    for rid in ("diagnostico-lentidao", "thermal", "fluidez-gfx"):
+            fail(f"ação ativa/reversível {rid} precisa permanecer AMARELA")
+    for rid in ("diagnostico-lentidao", "thermal", "fluidez-gfx", "wakelocks-alarmes", "jobs-agendados", "falhas-crashes", "overlays-status", "input-devices", "seguranca-boot"):
         if recipe_map[rid]["risk"] != "VERDE":
             fail(f"diagnóstico somente leitura {rid} precisa permanecer VERDE")
 
@@ -222,6 +238,7 @@ def main() -> int:
     print(f"recipes={len(recipes)}")
     print("launcher=PremiumOpsActivity")
     print("human_operation_states=present")
+    print("command_timeout=45s")
     print("package_intelligence=present")
     print("change_ledger=present")
     print("persistent_adb_identity=present")
