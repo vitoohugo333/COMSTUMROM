@@ -1,259 +1,201 @@
-# Estado oficial — CUSTOMROM ADB S23 Premium Operacional
+# Estado oficial — CUSTOMROM ADB S23 Premium Acionável
 
 **Atualizado em:** 2026-08-08, horário de Brasília  
 **Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
-**Estado:** expansão premium operacional compilada em CI real, artifact baixado e integridade conferida; validação física S23 → TayTech permanece pendente.
+**Estado:** Functional Action Graph implementado, contrato estático permanente PASS, Android build PASS, artifact baixado e hash conferido. Validação física desta nova APK no S23 → TayTech permanece pendente.
 
 ## Fotografia humana atual
 
-**A linguagem visual premium aprovada foi preservada. A nova APK aumenta fortemente autonomia, didática e alcance operacional: resultados shell viram estados humanos, Aplicativos ganhou inteligência explicável e rollback, o ADB ganhou timeout explícito, e o catálogo passou a cobrir personalização, performance, crashes, energia, overlays, launcher, input, segurança de boot e atalhos remotos.**
+**A linguagem visual premium aprovada foi preservada. O CUSTOMROM deixou de tratar o log como fim natural das receitas: o fluxo novo tenta interpretar o que foi encontrado, transformar packages/processos/configurações em objetos navegáveis, oferecer próximos passos e só então deixar a evidência técnica disponível sob demanda.**
 
-## Superfície principal
+O Galaxy S23 continua sendo o controlador. A TayTech continua sendo o alvo remoto via Wireless ADB.
 
-O Galaxy S23 continua sendo o controlador. A TayTech continua sendo o alvo remoto ADB.
+## Evidência física que originou este ciclo
 
-A navegação permanece:
+O proprietário validou a versão premium operacional no S23 e aprovou fortemente UI, navegação, conexão e novas funções. As capturas de uso real, porém, mostraram uma lacuna funcional clara: receitas como `top` e o diagnóstico de lentidão abriam grandes blocos de saída técnica como resultado principal e repetiam a evidência em uma área `Saída técnica`.
 
-- **Comandos** — biblioteca pesquisável, favoritos, ações de alto valor e personalização reversível;
-- **Terminal** — shell multilinha, classificação de risco, estados humanos, saída técnica sob demanda e interrupção;
-- **Apps** — inventário real, filtros, criticidade, confiança, motivos, análise, force-stop, disable/restore e ledger;
-- **Diagnóstico** — workflows humanos + evidência técnica;
-- **Sessões** — linha do tempo, alterações feitas pelo CUSTOMROM e Evidence Pack.
+Decisão de produto decorrente:
 
-## Resultado humano padronizado
+`INTENÇÃO → COLETA → INTERPRETAÇÃO → OBJETOS ACIONÁVEIS → PRÓXIMOS PASSOS → AÇÃO ESCOLHIDA → VERIFICAÇÃO → HISTÓRICO/ROLLBACK/EVIDÊNCIA`
 
-Toda execução comum passa por um contrato visual único:
+Log continua preservado, mas passa a ser **evidência secundária** quando existe uma próxima ação humana natural.
 
-`IDLE → QUEUED → RUNNING → SUCCESS_WITH_OUTPUT | SUCCESS_EMPTY | COMMAND_ERROR | TRANSPORT_ERROR | CANCELLED`
+## Functional Action Graph v1
 
-Regras principais:
+Novo arquivo: `FunctionalActionEngine.kt`.
 
-- `exit=0` nunca é apresentado como “saída zero”;
-- sucesso sem stdout/stderr aparece como **Concluído — nenhum texto foi retornado pelo comando**;
-- erro do shell é separado de erro de transporte ADB;
-- timeout é apresentado como **Tempo esgotado**;
-- códigos de saída e duração ficam em detalhes técnicos.
+O engine recebe `recipeId + raw output` e devolve:
 
-## Timeout e recuperação
+- título humano;
+- resumo;
+- achados estruturados;
+- lista de próximas ações;
+- destino da ação;
+- risco da próxima ação;
+- acesso separado à evidência técnica.
 
-`AdbRemoteController` agora impõe timeout explícito padrão de **45 s** para shell remoto.
+Destinos atualmente suportados:
 
-Se uma operação excede o limite:
+- package específico;
+- filtro da tela Apps;
+- outra receita;
+- outra tela;
+- Terminal.
 
-1. a task é cancelada;
-2. a conexão Kadb é resetada;
-3. a UI recebe estado `Tempo esgotado`;
-4. o controller tenta recuperar a conexão antes da próxima ação.
+O engine **não executa alterações sozinho**. A escolha continua pertencendo ao usuário e qualquer ação AMARELA passa pelo gate normal de confirmação/rollback.
 
-Esse padrão foi destilado de práticas externas de tooling ADB que exigem timeouts explícitos e contratos observáveis; nenhum código externo foi incorporado.
+## Jornadas acionáveis implementadas
 
-## Apps Intelligence
+### Por que a central está lenta?
 
-A tela Apps agora separa dois conceitos:
+Interpreta quando disponível:
 
-### Criticidade do package
+- `MemTotal`;
+- `MemAvailable`;
+- swap/ZRAM;
+- principais owners de CPU expostos por `dumpsys cpuinfo`.
 
-- `PROTEGIDO`;
-- `ALTA`;
-- `MÉDIA`;
-- `BAIXA`;
-- `DESCONHECIDA`.
+Depois oferece ações como:
 
-### Risco da ação
+- investigar package consumidor diretamente em Apps;
+- abrir Apps filtrado por `Rodando`;
+- cruzar com wakelocks/alarmes;
+- repetir a mesma coleta para comparação posterior.
 
-- `VERDE` — leitura;
-- `AMARELO` — interação/mudança reversível;
-- `VERMELHO` — estrutural/destrutiva, bloqueada no fluxo comum.
+Nenhum consumidor é automaticamente classificado como bloat ou desativado.
 
-Cada classificação recebe confiança `alta`, `média` ou `baixa` e razões observáveis.
+### O que inicia junto com a central?
 
-Sinais utilizados incluem:
+A receita `boot-servicos` deixa de terminar apenas no dump. Packages extraídos da evidência viram atalhos para a tela Apps, onde o usuário vê criticidade, confiança, razões e ações permitidas.
 
-- package name;
-- caminho do APK (`/data/app`, `/system`, `/product`, `/vendor`, `/odm`, `priv-app`, APEX);
-- metadados de persistent/boot/shared UID quando inspecionados;
-- tokens automotivos como CAN/CAN box/Jancar/HiWorld/MCU/HVAC/DSP/rádio/câmera/ACC/sleep/wake;
-- origem sistema/usuário;
-- estado disabled/running.
+### Quais apps estão falhando?
 
-`DESCONHECIDA` nunca é promovida silenciosamente a “segura”.
+`falhas-crashes` e `logcat-curto` tentam extrair packages relacionados a crashes/ANRs/eventos e oferecem investigação contextual. Presença no log **não é tratada como prova de culpa**.
 
-## Inventário e ações de packages
+### Quem acorda a central?
 
-O inventário rápido consulta:
+`wakelocks-alarmes` transforma possíveis owners em packages navegáveis e permite cruzar a evidência com jobs.
 
-- todos os packages;
-- sistema;
-- terceiros/usuário;
-- desativados;
-- processos correntes.
+### O que trabalha em segundo plano?
 
-Filtros previstos na UI:
+`jobs-agendados` liga jobs a packages quando possível e permite abrir o detalhe do app ou cruzar com wakelocks.
+
+### Personalizações reversíveis
+
+Depois de ações como animações, rotação e stay-on, o resultado oferece uma ação de **verificação**, em vez de apenas confirmar que o comando executou.
+
+## Diagnóstico — nova apresentação
+
+A tela Diagnóstico ganhou perguntas explícitas:
+
+- **O que inicia junto com a central?**
+- **Quais apps estão falhando?**
+- **Quem acorda a central?**
+- **O que trabalha em segundo plano?**
+
+O último resultado agora prioriza resumo humano. A saída bruta fica oculta por padrão e aparece apenas ao tocar em **Ver evidência técnica**.
+
+Existe uma nova área **O que você pode fazer agora**, preenchida com ações derivadas do resultado.
+
+## Apps continua sendo a superfície de decisão
+
+O inventário e a inteligência já existentes foram preservados:
 
 `Todos | Rodando | Usuário | Sistema | Desativados | Protegidos | Candidatos | Alterados`
 
-A inspeção sob demanda acrescenta `dumpsys package`, PID, `dumpsys meminfo` e serviços relacionados.
+Cada package continua recebendo:
 
-Ações:
+- criticidade `PROTEGIDO | ALTA | MÉDIA | BAIXA | DESCONHECIDA`;
+- confiança;
+- razões observáveis;
+- estado sistema/usuário;
+- enabled/disabled/running;
+- caminho do APK quando disponível.
 
-- **Analisar** — leitura;
-- **Parar temporariamente** — `am force-stop --user 0`;
-- **Desativar reversivelmente** — `pm disable-user --user 0`;
-- **Restaurar** — `pm enable --user 0`, somente quando o ledger comprova que o CUSTOMROM fez a desativação.
+Ações permanecem:
 
-Packages `PROTEGIDO`/`ALTA` ficam sem stop/disable no fluxo comum.
+- **Analisar** — VERDE;
+- **Parar temporariamente** — AMARELO;
+- **Desativar reversivelmente** — AMARELO;
+- **Restaurar** — somente quando o ChangeLedger comprova que o CUSTOMROM realizou a desativação.
 
-## Ledger de alterações
+Packages PROTEGIDO/ALTA continuam sem stop/disable no fluxo comum.
 
-`ChangeLedger` persiste até 500 registros em armazenamento privado do app.
+## Resultado humano / timeout / segurança preservados
 
-Cada alteração registra:
+Continuam válidos:
 
-- package;
-- ação;
-- estado anterior;
-- estado posterior;
-- timestamp;
-- sessão;
-- exit code;
-- rollback conhecido.
+- `exit=0` não aparece como “saída zero”;
+- sucesso sem stdout tem estado próprio;
+- command error ≠ transport error;
+- timeout padrão de shell = 45 s;
+- timeout cancela a task, reseta transporte e tenta recuperar conexão;
+- VERDE = leitura;
+- AMARELO = interação ou mudança reversível;
+- VERMELHO = estrutural/destrutivo e bloqueado no fluxo comum.
 
-O Evidence Pack inclui `changes.json`.
+Nenhuma mudança foi feita em ROM, MCU, CAN, partições, root, AVB ou firmware.
 
-## Catálogo expandido
+## Catálogo preservado
 
-O catálogo passou de **7 para 44 receitas**.
+As **44 receitas** existentes foram mantidas. O Bloco 04 muda principalmente o que acontece **depois** da coleta, não remove capacidades anteriores.
 
-Além da base anterior, agora cobre:
+## Contrato de regressão permanente
 
-### Performance e saúde
+`tools/validate_native_customrom.py` agora exige explicitamente:
 
-- thermal;
-- energia/bateria/device idle;
-- armazenamento/mounts;
-- fluidez/SurfaceFlinger/gfxinfo;
-- diagnóstico composto **Por que a central está lenta?**;
-- wakelocks e alarmes;
-- jobs agendados;
-- crashes/ANRs.
+- `FunctionalActionEngine` presente;
+- `FunctionalActionGraph` ligado à Activity;
+- boot/crash/wake/jobs com jornadas acionáveis;
+- área `O que você pode fazer agora`;
+- evidência técnica secundária;
+- receitas usando `showDialog = false` no caminho comum, impedindo retorno ao padrão de abrir dump bruto automaticamente;
+- botão explícito para ver evidência técnica.
 
-### Sistema e personalização
+No run final o validador imprimiu:
 
-- tela/resolução/densidade/brilho/rotação/timeout;
-- escalas de animação;
-- animações 0x e rollback 1x;
-- rotação automática on/off;
-- manter tela ligada durante alimentação e rollback;
-- overlays ativos;
-- launcher e apps padrão;
-- input devices e teclado;
-- acessibilidade, IME e notification listeners;
-- USB;
-- SELinux/Verified Boot/security patch.
+- `functional_action_graph=present`;
+- `raw_evidence=secondary`;
+- `actionable_boot_crash_wake_jobs=present`.
 
-### Conectividade/mídia
+## Build final do Bloco 04
 
-- Wi‑Fi/rede/ADB;
-- DNS/proxy/conectividade;
-- Bluetooth;
-- áudio e media sessions.
-
-### Controle remoto prático
-
-- abrir Configurações Android;
-- abrir Wi‑Fi;
-- abrir Bluetooth;
-- abrir lista de aplicativos;
-- enviar Home;
-- enviar Voltar.
-
-Essas ações ativas são AMARELAS e exigem confirmação.
-
-## Skills externas destiladas
-
-Duas referências ADB foram usadas como matéria-prima, nunca como autoridade:
-
-- `pengdev/claude-adb-skill` — padrão de inspeção por camadas e uso de `uiautomator dump` como evidência UI;
-- `hah23255/adb-android-control` — contratos observáveis, health/workflow, classificação de falhas e principalmente timeout explícito para evitar comandos presos.
-
-O que foi incorporado são conceitos adaptados à arquitetura Kadb do CUSTOMROM. Nenhuma dependência Python, CLI externa ou código dessas ferramentas foi adicionado ao APK.
-
-## Segurança operacional reforçada
-
-O Terminal agora reconhece mais sinais de risco, incluindo:
-
-- fastboot/flash/erase/wipe;
-- uninstall;
-- root/remount/mount rw;
-- `dd`, `mkfs`, partition tools;
-- AVB/Magisk/SELinux permissivo;
-- remoções recursivas;
-- force-stop/disable/enable/settings put;
-- `am start`/broadcast;
-- input remoto;
-- uiautomator dump;
-- chmod/chown/kill;
-- overlay enable/disable.
-
-VERMELHO continua bloqueado no fluxo comum.
-
-## Backend preservado
-
-- Kadb `2.1.1`;
-- Coroutines `1.10.2`;
-- compileSdk `36`;
-- minSdk `29`;
-- targetSdk `35`;
-- pairing por código;
-- identidade ADB persistente;
-- `:5555`;
-- `_adb-tls-connect` por mDNS;
-- reconexão;
-- shell;
-- ZIP/SHA-256/Evidence Pack.
-
-## Build final desta expansão
-
-- validação de contrato: **PASS**;
+- contrato estático: **PASS**;
 - Android build: **PASS**;
+- Gradle assembleDebug: **BUILD SUCCESSFUL**;
 - artifact: `CUSTOMROM-ADB-S23-PREMIUM`;
 - APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
-- source commit: `a4d0ac1554ad7aa7f279d1166608ecb67c1712f8`;
-- run: `31241041911`;
-- SHA-256: `ee3fabbfe64ef9651ddbad7fc7dea4ae38f243d3b68abb8a01bee703f87d3def`.
+- source commit testado: `b9a417954d69abb11d2d7458adfbaaf9a8c3f5ef`;
+- run: `31242479522`;
+- APK SHA-256: `2e2dc2c948632039501a39999f80b7e867f6495fbb948c5518e926abfd00d69e`.
 
-O artifact foi baixado fora da Actions. O SHA-256 foi recalculado e coincide com `sha256.txt` e com `ci/s23-premium-build-proof.json`. O APK também passou em `unzip -t` sem erros.
+O artifact foi baixado fora da Actions, o SHA-256 foi recalculado e coincide com `sha256.txt` e com `ci/s23-premium-build-proof.json`. `unzip -t` do APK terminou sem erros.
 
-## Incidentes do ciclo
+## Blueprint Premium UI/UX
 
-Dois falsos negativos do verificador foram corrigidos em vez de contornados:
+**Congelado por decisão explícita do proprietário.**
 
-1. o contrato procurava a frase de `SUCCESS_EMPTY` na Activity, embora a responsabilidade tenha sido corretamente extraída para `PremiumOpsModels`;
-2. a regex genérica `flash` confundiu a propriedade somente leitura `ro.boot.flash.locked` com uma ação de flash; o detector passou a reconhecer execução real de comando.
+A atualização operacional que havia sido acrescentada ao Blueprint foi revertida no Notion. O Blueprint não deve receber novas alterações sem nova autorização explícita. Aprendizados futuros vão para blocos, Estado Oficial, Registro de Alterações e Aprendizados.
 
-Nenhum dos dois era erro de compilação do produto.
+## Validação física pendente
 
-## Validação física ainda pendente
+Esta APK ainda precisa ser validada S23 → TayTech.
 
-A build não recebe PASS físico antes de ser testada S23 → TayTech.
+Gate recomendado:
 
-Gate sugerido:
-
-1. atualizar/instalar a APK no S23;
-2. confirmar abertura em `PremiumOpsActivity`;
-3. validar estados `Concluído`, `Concluído sem texto`, falha e cancelamento;
-4. carregar Apps e conferir classificação/razões em packages reais;
-5. analisar um package não crítico;
-6. só com autorização física, testar um único force-stop/disable reversível de baixo risco e depois `Restaurar`;
-7. executar `Por que a central está lenta?`;
-8. testar um atalho remoto de Configurações/Home;
-9. gerar Evidence Pack;
-10. observar crash/ANR/logcat do próprio CUSTOMROM.
+1. instalar/atualizar a APK no S23;
+2. executar **Por que a central está lenta?** e confirmar que o resultado abre resumo + ações, não dump como fim da jornada;
+3. tocar num package sugerido e confirmar navegação para Apps;
+4. executar **O que inicia junto com a central?** e confirmar que packages extraídos são navegáveis;
+5. executar **Quais apps estão falhando?**, **Quem acorda a central?** e **O que trabalha em segundo plano?**;
+6. confirmar que **Ver evidência técnica** continua disponível;
+7. não executar disable automático; qualquer teste AMARELO físico continua exigindo escolha explícita e rollback conhecido;
+8. observar crash/ANR/logcat do próprio CUSTOMROM.
 
 ## Rollback
 
-A `main` continua fora desta implementação. Nenhuma ROM, MCU, CAN, partição ou package da TayTech foi alterado durante a construção/CI. Se a nova APK regredir no S23, a build premium anterior permanece referência de rollback enquanto a branch é corrigida.
+A `main` continua fora desta implementação. A build anterior premium operacional permanece referência de rollback se esta nova jornada regredir no S23.
 
-## Próximo passo
+## Próximo passo único
 
-**Validar esta APK expandida no Galaxy S23 contra a TayTech e usar o próprio CUSTOMROM para iniciar o inventário real de packages e o diagnóstico de lentidão.**
+**Instalar a APK do Functional Action Graph no S23 e validar se cada diagnóstico agora leva naturalmente a uma próxima decisão humana, mantendo a evidência técnica em segundo plano.**
