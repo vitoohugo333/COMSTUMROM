@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import com.flyfishxu.kadb.Kadb
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
@@ -210,6 +211,70 @@ class AdbRemoteController(
                 }
             }
         }, timeoutMs.coerceAtLeast(1_000L), TimeUnit.MILLISECONDS)
+
+        return task
+    }
+
+
+    fun installApk(
+        file: File,
+        replaceExisting: Boolean = true,
+        timeoutMs: Long = 90_000L,
+        callback: (RemoteShellOutcome) -> Unit
+    ): Future<*> {
+        val started = System.currentTimeMillis()
+        val completed = AtomicBoolean(false)
+        var task: Future<*>? = null
+
+        task = executor.submit {
+            val connection = kadb
+            if (connection == null) {
+                if (completed.compareAndSet(false, true)) {
+                    val result = RemoteShellOutcome("", "", -1, System.currentTimeMillis() - started, IllegalStateException("TayTech não conectada"))
+                    mainHandler.post { callback(result); autoReconnect(force = true) }
+                }
+                return@submit
+            }
+            if (!file.isFile || file.length() <= 0L) {
+                if (completed.compareAndSet(false, true)) {
+                    mainHandler.post { callback(RemoteShellOutcome("", "APK local ausente ou vazio", 2, System.currentTimeMillis() - started)) }
+                }
+                return@submit
+            }
+            try {
+                if (replaceExisting) connection.install(file, "-r") else connection.install(file)
+                if (completed.compareAndSet(false, true)) {
+                    mainHandler.post { callback(RemoteShellOutcome("Success", "", 0, System.currentTimeMillis() - started)) }
+                }
+            } catch (t: Throwable) {
+                if (completed.compareAndSet(false, true)) {
+                    val transport = if (runCatching { connection.connectionCheck() }.getOrDefault(false)) null else t
+                    if (transport != null) runCatching { connection.resetConnection() }
+                    val result = RemoteShellOutcome("", t.message ?: t::class.java.simpleName, 1, System.currentTimeMillis() - started, transport)
+                    mainHandler.post {
+                        callback(result)
+                        if (transport != null) {
+                            emit(RemoteConnectionState.WaitingNetwork("instalação perdeu o transporte; reconectando"))
+                            autoReconnect(force = true)
+                        }
+                    }
+                }
+            }
+        }
+
+        timeoutScheduler.schedule({
+            if (completed.compareAndSet(false, true)) {
+                task?.cancel(true)
+                runCatching { kadb?.resetConnection() }
+                val duration = System.currentTimeMillis() - started
+                val error = TimeoutException("TIMEOUT: instalação excedeu ${timeoutMs / 1000}s")
+                mainHandler.post {
+                    callback(RemoteShellOutcome("", "", -1, duration, error))
+                    emit(RemoteConnectionState.WaitingNetwork("instalação excedeu o tempo limite; recuperando conexão"))
+                    autoReconnect(force = true)
+                }
+            }
+        }, timeoutMs.coerceAtLeast(5_000L), TimeUnit.MILLISECONDS)
 
         return task
     }

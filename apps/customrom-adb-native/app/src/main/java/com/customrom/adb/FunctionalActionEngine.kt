@@ -332,7 +332,7 @@ object FunctionalActionEngine {
         actions += if (agentInstalled) {
             FunctionalAction("Preparar CUSTOMROM Agent", "Concede WRITE_SECURE_SETTINGS e manda o companion aplicar a recuperação de Wireless ADB.", ActionDestination.RECIPE, "customrom-agent-preparar", "AMARELO")
         } else {
-            FunctionalAction("Verificar CUSTOMROM Agent", "Confirma se o companion de boot está instalado e com permissão.", ActionDestination.RECIPE, "customrom-agent-status")
+            FunctionalAction("Instalar CUSTOMROM Agent", "O APK companion já está dentro do CUSTOMROM no S23; instalar e preparar é um fluxo de um toque.", ActionDestination.RECIPE, "customrom-agent-instalar", "AMARELO")
         }
         actions += FunctionalAction("Abrir opções de desenvolvedor", "Fallback visual direto na TayTech.", ActionDestination.RECIPE, "abrir-depuracao-sem-fio", "AMARELO")
         if (rollback) actions += FunctionalAction("Restaurar configuração anterior", "Executa o rollback salvo antes da tentativa de persistência.", ActionDestination.RECIPE, "adb-persistencia-restaurar", "AMARELO")
@@ -366,7 +366,10 @@ object FunctionalActionEngine {
         findings += if (installed) "CUSTOMROM Agent instalado." else "CUSTOMROM Agent não instalado. O artifact V6 inclui o APK companion para a TayTech."
         if (installed) findings += if (granted) "Permissão WRITE_SECURE_SETTINGS concedida." else "Agent instalado, mas ainda sem WRITE_SECURE_SETTINGS."
         val actions = mutableListOf<FunctionalAction>()
-        if (installed && !granted) actions += FunctionalAction("Preparar Agent agora", "Concede a permissão de desenvolvimento e executa o recovery uma vez.", ActionDestination.RECIPE, "customrom-agent-preparar", "AMARELO")
+        when {
+            !installed -> actions += FunctionalAction("Instalar Agent na TayTech", "Transfere e instala o companion embutido usando a conexão ADB atual.", ActionDestination.RECIPE, "customrom-agent-instalar", "AMARELO")
+            !granted -> actions += FunctionalAction("Preparar Agent agora", "Concede a permissão de desenvolvimento e executa o recovery uma vez.", ActionDestination.RECIPE, "customrom-agent-preparar", "AMARELO")
+        }
         actions += FunctionalAction("Conferir ADB após reinício", "Volta ao diagnóstico completo de persistência.", ActionDestination.RECIPE, "adb-persistencia-diagnostico")
         return ActionableReport("CUSTOMROM Agent", if (installed && granted) "Companion pronto para tentar reativar Wireless ADB a cada boot." else "O app mostrou exatamente o que falta para automatizar o boot.", findings, actions)
     }

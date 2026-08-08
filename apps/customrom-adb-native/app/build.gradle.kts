@@ -37,6 +37,22 @@ android {
     }
 }
 
+val embeddedAgentAssets = layout.buildDirectory.dir("generated/customromAgentAssets").get().asFile
+val prepareEmbeddedAgent by tasks.registering(Copy::class) {
+    dependsOn(":agent:assembleDebug")
+    from(project(":agent").layout.buildDirectory.file("outputs/apk/debug/agent-debug.apk"))
+    into(embeddedAgentAssets)
+    rename { "CUSTOMROM-Agent-TayTech-debug.apk" }
+}
+
+android.sourceSets.named("main") {
+    assets.srcDir(embeddedAgentAssets)
+}
+
+tasks.configureEach {
+    if (name == "preDebugBuild") dependsOn(prepareEmbeddedAgent)
+}
+
 dependencies {
     implementation("com.flyfishxu:kadb:2.1.1")
     // MainActivity chama Kadb.pair (suspend) através de runBlocking.

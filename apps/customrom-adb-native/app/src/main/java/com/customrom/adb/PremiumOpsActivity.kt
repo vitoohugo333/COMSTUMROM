@@ -884,7 +884,7 @@ class PremiumOpsActivity : Activity() {
         when (action.destination) {
             ActionDestination.PACKAGE -> openPackageContext(action.target)
             ActionDestination.APPS_FILTER -> openAppsFilter(action.target)
-            ActionDestination.RECIPE -> runRecipeById(action.target)
+            ActionDestination.RECIPE -> if (action.target == "customrom-agent-instalar") installCustomromAgent() else runRecipeById(action.target)
             ActionDestination.SCREEN -> {
                 if (screens.containsKey(action.target)) {
                     showSection(action.target)
@@ -939,6 +939,57 @@ class PremiumOpsActivity : Activity() {
         } else {
             refreshAppList()
             appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
+        }
+    }
+
+
+    private fun installCustomromAgent() {
+        if (activeTask?.isDone == false) {
+            toast("Já existe uma operação em andamento")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Instalar CUSTOMROM Agent na TayTech")
+            .setMessage("O companion é pequeno e roda na própria multimídia para tentar reativar ADB/Wireless debugging após o boot. A instalação é reversível e não toca em MCU, CAN ou firmware.")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Instalar") { _, _ -> installCustomromAgentNow() }
+            .show()
+    }
+
+    private fun installCustomromAgentNow() {
+        val assetName = "CUSTOMROM-Agent-TayTech-debug.apk"
+        val apk = File(cacheDir, assetName)
+        try {
+            assets.open(assetName).use { input -> apk.outputStream().use { output -> input.copyTo(output) } }
+        } catch (t: Throwable) {
+            val failed = HumanOperationResult(OperationPhase.COMMAND_ERROR, "Agent indisponível", "O APK companion não foi encontrado dentro desta build.", t.stackTraceToString(), false)
+            renderOperation(failed)
+            showTechnicalResult(failed, t.stackTraceToString())
+            return
+        }
+
+        renderOperation(HumanOperationResult(OperationPhase.RUNNING, "Instalando CUSTOMROM Agent", "Enviando o companion diretamente do S23 para a TayTech…", "Kadb.install · ${apk.length()} bytes", false))
+        activeTask = adb.installApk(apk, replaceExisting = true) { outcome ->
+            activeTask = null
+            val raw = combineRaw(outcome)
+            val result = if (outcome.transportError != null) {
+                OperationPresenter.transportError("Instalar CUSTOMROM Agent", outcome.transportError.message ?: outcome.transportError::class.java.simpleName, outcome.durationMs)
+            } else {
+                OperationPresenter.fromShell("Instalar CUSTOMROM Agent", outcome.stdout, outcome.stderr, outcome.exitCode, outcome.durationMs)
+            }
+            lastRawOutput = raw
+            renderOperation(result)
+            appendExecution("Instalar CUSTOMROM Agent", "Kadb.install($assetName, -r)", "AMARELO", outcome)
+            apk.delete()
+            if (!result.success) {
+                showTechnicalResult(result, raw)
+                return@installApk
+            }
+
+            val prepare = "pm grant com.customrom.agent android.permission.WRITE_SECURE_SETTINGS 2>&1; am broadcast -a com.customrom.agent.APPLY -n com.customrom.agent/.BootReceiver 2>&1; echo agent_installed=1; if dumpsys package com.customrom.agent 2>/dev/null | grep -A8 'grantedPermissions' | grep -q 'android.permission.WRITE_SECURE_SETTINGS'; then echo write_secure_settings=granted; else echo write_secure_settings=missing; fi; echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled)"
+            executeNow("Preparar CUSTOMROM Agent", prepare, "AMARELO", showDialog = false) { _, prepared ->
+                if (prepared.success) runRecipeById("customrom-agent-status") else showTechnicalResult(prepared, lastRawOutput)
+            }
         }
     }
 

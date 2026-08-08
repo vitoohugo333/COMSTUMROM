@@ -318,6 +318,12 @@ def main() -> int:
         fail("papéis dos launchers Smart/Jancar precisam estar explícitos na inteligência de packages")
     if 'include(":agent")' not in SETTINGS.read_text(encoding="utf-8"):
         fail("CUSTOMROM Agent precisa estar incluído no build")
+    if 'CUSTOMROM-Agent-TayTech-debug.apk' not in BUILD.read_text(encoding="utf-8"):
+        fail("app do S23 precisa embutir o Agent para instalação de um toque")
+    if 'fun installApk(' not in controller_src or 'connection.install(file, "-r")' not in controller_src:
+        fail("AdbRemoteController precisa instalar APK remoto pela API Kadb validada")
+    if 'installCustomromAgentNow()' not in ops_src or 'customrom-agent-instalar' not in ops_src:
+        fail("fluxo visual precisa instalar o Agent sem exigir transferência manual")
     agent_manifest = AGENT_MANIFEST.read_text(encoding="utf-8")
     if 'android.permission.WRITE_SECURE_SETTINGS' not in agent_manifest or 'android.intent.action.BOOT_COMPLETED' not in agent_manifest:
         fail("CUSTOMROM Agent precisa declarar permissão e receiver de boot")
@@ -343,6 +349,7 @@ def main() -> int:
     print("launcher_roles=present")
     print("adb_persistence_flow=present")
     print("customrom_agent=present")
+    print("customrom_agent_one_tap_install=present")
     print("log_storm_diagnostic=present")
     print("evidence_export=present")
     print("adb_backend=com.flyfishxu:kadb:2.1.1")
