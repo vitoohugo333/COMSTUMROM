@@ -12,6 +12,12 @@ on:
 permissions:
   contents: write
 
+# Só o estado mais recente da main interessa para o APK de validação.
+# Evita dois runs concorrentes tentando publicar o mesmo comprovante de build.
+concurrency:
+  group: build-customrom-adb-native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -75,6 +81,7 @@ jobs:
           cat > out/native/build-info.txt <<EOF
           build=CUSTOMROM ADB native
           backend=com.flyfishxu:kadb:2.1.1
+          coroutines=1.10.2
           compileSdk=36
           minSdk=29
           targetSdk=35
@@ -107,8 +114,8 @@ jobs:
           else
             STATUS=FAIL
           fi
-          mkdir -p ci
-          cat > ci/native-build-proof.json <<EOF
+
+          cat > /tmp/native-build-proof.json <<EOF
           {
             "status": "${STATUS}",
             "validation": "${VALIDATE_OUTCOME}",
@@ -122,12 +129,22 @@ jobs:
             "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ci/native-build-proof.json
-          git commit -m "ci: record native CUSTOMROM ADB build ${STATUS}" || true
+
+          # Sincroniza primeiro e só depois grava o arquivo compartilhado. Assim um
+          # comprovante anterior não vira conflito de rebase entre builds sobrepostas.
           git pull --rebase origin main
-          git push origin HEAD:main
+          mkdir -p ci
+          cp /tmp/native-build-proof.json ci/native-build-proof.json
+          git add ci/native-build-proof.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: record native CUSTOMROM ADB build ${STATUS}"
+            git push origin HEAD:main
+          else
+            echo "Build proof already up to date"
+          fi
 
       - name: Enforce build result
         if: always()
