@@ -1,36 +1,38 @@
 # Estado oficial — CUSTOMROM TAYTECH (`main`)
 
-**Atualizado em:** 2026-08-07, horário de Brasília  
-**Estado:** aplicativo próprio CUSTOMROM ADB compilado e verificado; próximo gate é validação física no S23/TayTech.  
+**Atualizado em:** 2026-08-08, horário de Brasília  
+**Estado:** CUSTOMROM ADB com cockpit visual premium compilado e verificado; próximo gate é validação visual e funcional no S23/TayTech.  
 **Papel da `main`:** linha principal de governança, documentação, evidência e ferramentas seguras.
-
-## Estado
-
-A etapa de criar uma alternativa operacional própria ao fluxo manual do cliente ADB de referência chegou a uma build Android real.
-
-O aplicativo nativo já possui no código e passou pela compilação com:
-
-- pareamento ADB por código;
-- identidade ADB persistente;
-- conexão direta e tentativa por `:5555`;
-- descoberta/reconexão via `_adb-tls-connect` por mDNS;
-- terminal e execução de shell;
-- classificação VERDE / AMARELO / VERMELHO;
-- receitas de diagnóstico CUSTOMROM;
-- sessão e organização de evidências;
-- geração de SHA-256;
-- exportação em ZIP;
-- compartilhamento pelo Android.
-
-Essas capacidades estão **implementadas e compiladas**, mas ainda não devem ser chamadas de PASS de integração até serem exercitadas no S23 contra a TayTech real.
 
 ## Fotografia humana atual
 
-**CUSTOMROM ADB nativo compilado + artifact real baixado + integridade conferida + CI estabilizada + aprendizado fechado + Notion sincronizado. Falta instalar no S23 e provar a comunicação real com a TayTech.**
+**A primeira interface técnica crua foi rejeitada pelo proprietário. A camada visual foi reconstruída como cockpit premium escuro, responsivo e orientado por contexto. A nova build passou pela CI, o artifact real foi baixado e o SHA-256 foi conferido. Falta instalar no S23 para validar aparência e comportamento em runtime.**
 
-## Build nativa aprovada pela CI
+## O que mudou na interface
 
-Base conhecida e protegida:
+A interface antiga de formulário único foi substituída por uma arquitetura de produto:
+
+- `Central` — TayTech como alvo principal, estado da conexão, endpoint, ações rápidas e sessão atual;
+- `Terminal` — editor multilinha, chip de risco dinâmico, execução, console e cópia de saída;
+- `Diagnóstico` — snapshot completo e biblioteca de receitas por cards;
+- `Sessões` — resumo, Evidence Pack, exportação, compartilhamento e linha do tempo;
+- `Mais` — conexão manual, reconexão e ferramentas técnicas secundárias.
+
+Adicionalmente:
+
+- tema escuro próprio;
+- identidade visual CUSTOMROM;
+- novo ícone;
+- conexão/pareamento manual movidos para painel dedicado;
+- navegação inferior em celular;
+- navegação lateral automática em telas com `screenWidthDp >= 700`;
+- tratamento de system insets para evitar conteúdo sob barras do Android;
+- hierarquia visual com cards, estados, badges e CTAs;
+- backend ADB, receitas, sessões e Evidence Pack preservados.
+
+## Build premium aprovada pela CI
+
+Base técnica mantida:
 
 - Kadb `2.1.1`;
 - Coroutines `1.10.2`;
@@ -47,74 +49,69 @@ Resultado integrado:
 - build Android: **PASS**;
 - artifact: `CUSTOMROM-ADB-native`;
 - APK: `CUSTOMROM-ADB-native-debug.apk`;
-- SHA-256: `19a038ec37c5d2619df08cd8b928aba0a1dcb2d0284c1bab218736aa8ca0b3ae`;
-- fotografia técnica testada: `6b8581a7ded59fc13928afc110ba8bd6c38275b5`;
-- run técnico: `31234887262`.
+- SHA-256: `59efbac6565c14842f3040ee58264197660f4e8ba70609bfc48414c71987be55`;
+- fotografia técnica testada: `34c6d69ffd405c4939b4f7bfdc95f1b5b9625de3`;
+- run técnico: `31236903021`.
 
-O artifact foi baixado fora da GitHub Actions. O SHA-256 do APK foi recalculado e coincidiu exatamente com `sha256.txt` e com `ci/native-build-proof.json`. O contêiner do APK também passou em teste de integridade ZIP.
+O artifact foi baixado fora da GitHub Actions. O SHA-256 do APK foi recalculado e coincidiu exatamente com `sha256.txt` e com `ci/native-build-proof.json`. O contêiner APK também passou em teste de integridade ZIP.
 
-## Aprendizado fechado
+## Falhas encontradas durante a reconstrução visual
 
-A sequência de builds revelou e fechou três falhas reutilizáveis:
+A primeira compilação da UI premium encontrou dois erros puramente mecânicos:
 
-1. Kadb `2.1.3` exigia compileSdk 37, enquanto a plataforma numérica necessária não estava disponível no fluxo do runner usado;
-2. `MainActivity` usa `runBlocking` diretamente e precisava declarar Coroutines no classpath do app;
-3. builds sobrepostas podiam disputar `ci/native-build-proof.json`.
+1. uso de `ScrollView.LayoutParams`, não resolvido pelo compilador Kotlin;
+2. uso da propriedade sintética `singleLine` em `EditText`.
 
-Prevenção executável:
+Correções aplicadas:
 
-- `tools/validate_native_customrom.py` protege a matriz Kadb/Coroutines/SDK conhecida;
-- `.github/workflows/build-customrom-adb-native.yml` serializa builds por branch e sincroniza a `main` antes de publicar o comprovante;
-- história/evidência em `docs/incidents/2026-08-07-build-nativo-e-comprovante-concorrente.md`.
+- `FrameLayout.LayoutParams` no conteúdo do `ScrollView`;
+- `setSingleLine(true)` no campo premium.
+
+A build seguinte passou integralmente.
+
+## Capacidades funcionais preservadas
+
+Continuam implementadas e compiladas:
+
+- pareamento ADB por código;
+- identidade ADB persistente;
+- conexão direta e tentativa por `:5555`;
+- descoberta/reconexão `_adb-tls-connect` via mDNS;
+- terminal e shell;
+- classificação VERDE / AMARELO / VERMELHO;
+- receitas de diagnóstico CUSTOMROM;
+- sessão e organização de evidências;
+- geração de SHA-256;
+- exportação ZIP;
+- compartilhamento pelo Android.
+
+Essas capacidades não recebem PASS de integração física até serem exercitadas contra a TayTech real.
 
 ## Validação física ainda pendente
 
-A primeira prova no hardware deve cobrir, nesta ordem:
+A próxima prova deve cobrir:
 
-1. instalar o APK no S23;
-2. abrir o app e parear a TayTech por código quando necessário;
-3. conectar e confirmar shell simples;
-4. fechar/reabrir o app e verificar reconexão sem refazer pareamento;
-5. confirmar o caminho `:5555` quando disponível;
-6. confirmar recuperação por mDNS quando aplicável;
-7. executar uma receita VERDE;
-8. gerar o pacote de evidência;
-9. compartilhar/exportar o pacote;
-10. observar crash/ANR/logcat durante o fluxo.
+1. instalar a nova APK premium no S23;
+2. avaliar visualmente Home, Terminal, Diagnóstico, Sessões e Mais;
+3. confirmar que insets, navegação e densidade estão corretos no S23;
+4. parear/conectar a TayTech;
+5. confirmar reconexão `:5555` e fallback mDNS;
+6. executar shell simples e multilinha;
+7. executar receita VERDE;
+8. gerar e compartilhar Evidence Pack;
+9. observar crash/ANR/logcat durante o fluxo;
+10. depois testar a adaptação em tela larga/multimídia.
 
-**Não declarar PASS físico antes dessa prova.**
-
-## Diagnóstico da lentidão da TayTech
-
-O diagnóstico de memória/processos continua sendo o objetivo seguinte do projeto, mas agora a intenção é fazê-lo pelo próprio cockpit CUSTOMROM assim que a comunicação física do novo app for comprovada.
-
-Antes de desativar qualquer pacote da central, continua obrigatório obter baseline suficiente e preservar funções automotivas por presunção.
+**Não declarar PASS visual ou físico antes dessa prova.**
 
 ## Rollback
 
-Nesta etapa não houve alteração de ROM, sistema, MCU, CAN ou pacotes da TayTech.
-
-Se o APK nativo apresentar regressão no teste físico, o rollback imediato é simplesmente parar/remover a build de desenvolvimento do S23 e continuar usando o cliente ADB de referência enquanto a falha é corrigida.
-
-## Notion sync
-
-**SINCRONIZADO neste checkpoint.**
-
-Foram atualizados:
-
-- `01 — Estado Oficial`;
-- `Bloco 00 — Evoluir o cliente ADB com mínimo de mudanças`, agora em **Aguardando validação física**;
-- `05 — Registro de Alterações do Notion`, com `CR-003`;
-- banco `Aprendizados`, com a prevenção permanente da matriz de build e da concorrência do comprovante.
-
-## Ações vermelhas executadas?
-
-**Não.** Nenhum root, fastboot, flash, remount, partição, AVB, firmware, MCU ou CAN foi alterado. Nenhuma otimização ADB foi aplicada à TayTech para produzir esta build.
+Nenhuma ROM, sistema, MCU, CAN ou pacote da TayTech foi alterado. Se esta build apresentar regressão, basta remover/parar a build de desenvolvimento do S23 e voltar ao artifact anterior enquanto a falha é corrigida.
 
 ## Codex Engineering Guardrails
 
-`code-work` foi usado como gate desta alteração. A correção foi conduzida por reprodução do erro, causa raiz, mudança mínima, CI real, artifact real e verificação independente do hash antes de fechar o checkpoint.
+`code-work` foi usado como gate. A reconstrução preservou o backend funcional, alterou apenas a superfície de produto necessária, reproduziu os erros de compilação, corrigiu as causas específicas e exigiu CI real + artifact real + hash independente antes do checkpoint.
 
 ## Próximo passo
 
-**Instalar `CUSTOMROM-ADB-native-debug.apk` no S23 e executar a primeira validação física controlada contra a TayTech.**
+**Instalar `CUSTOMROM-ADB-PREMIUM-debug.apk` no S23, abrir e enviar captura da Home. A partir da captura, fazer a auditoria visual real e ajustar densidade, proporção, tipografia, navegação e hierarquia antes de considerar a UI aprovada.**
