@@ -9,6 +9,9 @@ import com.flyfishxu.kadb.Kadb
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class RemoteConnectionState {
     data object Searching : RemoteConnectionState()
@@ -33,6 +36,7 @@ class AdbRemoteController(
 ) {
     private val prefs = context.getSharedPreferences("customrom_adb", Context.MODE_PRIVATE)
     private val executor = Executors.newSingleThreadExecutor()
+    private val timeoutScheduler = Executors.newSingleThreadScheduledExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile private var kadb: Kadb? = null
@@ -54,6 +58,7 @@ class AdbRemoteController(
         stopMdnsDiscovery()
         runCatching { kadb?.close() }
         executor.shutdownNow()
+        timeoutScheduler.shutdownNow()
     }
 
     fun isConnected(): Boolean = runCatching { kadb?.connectionCheck() == true }.getOrDefault(false)
@@ -142,35 +147,71 @@ class AdbRemoteController(
         }
     }
 
-    fun execute(command: String, callback: (RemoteShellOutcome) -> Unit): Future<*> {
-        return executor.submit {
-            val started = System.currentTimeMillis()
+    fun execute(
+        command: String,
+        timeoutMs: Long = 45_000L,
+        callback: (RemoteShellOutcome) -> Unit
+    ): Future<*> {
+        val started = System.currentTimeMillis()
+        val completed = AtomicBoolean(false)
+        var task: Future<*>? = null
+
+        task = executor.submit {
             val connection = kadb
             if (connection == null) {
-                val result = RemoteShellOutcome("", "", -1, System.currentTimeMillis() - started, IllegalStateException("TayTech não conectada"))
-                mainHandler.post { callback(result) }
-                autoReconnect(force = true)
+                if (completed.compareAndSet(false, true)) {
+                    val result = RemoteShellOutcome(
+                        "",
+                        "",
+                        -1,
+                        System.currentTimeMillis() - started,
+                        IllegalStateException("TayTech não conectada")
+                    )
+                    mainHandler.post { callback(result) }
+                    autoReconnect(force = true)
+                }
                 return@submit
             }
             try {
                 val response = connection.shell(command)
-                val result = RemoteShellOutcome(
-                    stdout = response.output,
-                    stderr = response.errorOutput,
-                    exitCode = response.exitCode,
-                    durationMs = System.currentTimeMillis() - started
-                )
-                mainHandler.post { callback(result) }
+                if (completed.compareAndSet(false, true)) {
+                    val result = RemoteShellOutcome(
+                        stdout = response.output,
+                        stderr = response.errorOutput,
+                        exitCode = response.exitCode,
+                        durationMs = System.currentTimeMillis() - started
+                    )
+                    mainHandler.post { callback(result) }
+                }
             } catch (t: Throwable) {
-                runCatching { connection.resetConnection() }
-                val result = RemoteShellOutcome("", "", -1, System.currentTimeMillis() - started, t)
-                mainHandler.post {
-                    callback(result)
-                    emit(RemoteConnectionState.WaitingNetwork("sessão caiu; reconectando"))
-                    autoReconnect(force = true)
+                if (completed.compareAndSet(false, true)) {
+                    runCatching { connection.resetConnection() }
+                    val result = RemoteShellOutcome("", "", -1, System.currentTimeMillis() - started, t)
+                    mainHandler.post {
+                        callback(result)
+                        emit(RemoteConnectionState.WaitingNetwork("sessão caiu; reconectando"))
+                        autoReconnect(force = true)
+                    }
                 }
             }
         }
+
+        timeoutScheduler.schedule({
+            if (completed.compareAndSet(false, true)) {
+                task?.cancel(true)
+                runCatching { kadb?.resetConnection() }
+                val duration = System.currentTimeMillis() - started
+                val error = TimeoutException("TIMEOUT: comando excedeu ${timeoutMs / 1000}s")
+                val result = RemoteShellOutcome("", "", -1, duration, error)
+                mainHandler.post {
+                    callback(result)
+                    emit(RemoteConnectionState.WaitingNetwork("comando excedeu o tempo limite; recuperando conexão"))
+                    autoReconnect(force = true)
+                }
+            }
+        }, timeoutMs.coerceAtLeast(1_000L), TimeUnit.MILLISECONDS)
+
+        return task
     }
 
     fun cancel(task: Future<*>?) {
