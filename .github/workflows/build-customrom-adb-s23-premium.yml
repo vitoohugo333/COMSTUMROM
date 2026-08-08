@@ -122,9 +122,13 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          printf '/build/\n' > apps/customrom-adb-native/agent/.gitignore
+          git rm -r --cached --ignore-unmatch apps/customrom-adb-native/agent/build
           git add \
             apps/customrom-adb-native/settings.gradle.kts \
-            apps/customrom-adb-native/agent \
+            apps/customrom-adb-native/agent/.gitignore \
+            apps/customrom-adb-native/agent/build.gradle.kts \
+            apps/customrom-adb-native/agent/src \
             apps/customrom-adb-native/app/build.gradle.kts \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/AdbRemoteController.kt \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt \
@@ -134,7 +138,7 @@ jobs:
             tools/validate_native_customrom.py
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: install taytech agent from CUSTOMROM v6.1 [skip ci]'
+            git commit -m 'feat: finalize practical operations v6.1 source [skip ci]'
             git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           else
