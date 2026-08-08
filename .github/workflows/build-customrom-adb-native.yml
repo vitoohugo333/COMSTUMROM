@@ -3,7 +3,9 @@ name: Build CUSTOMROM ADB native
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - refactor/customrom-adb-s23-premium
     paths:
       - 'apps/customrom-adb-native/**'
       - 'tools/validate_native_customrom.py'
@@ -12,8 +14,6 @@ on:
 permissions:
   contents: write
 
-# Só o estado mais recente da main interessa para o APK de validação.
-# Evita dois runs concorrentes tentando publicar o mesmo comprovante de build.
 concurrency:
   group: build-customrom-adb-native-${{ github.ref }}
   cancel-in-progress: true
@@ -36,9 +36,7 @@ jobs:
       - name: Validate native CUSTOMROM contract
         id: validate
         continue-on-error: true
-        shell: bash
-        run: |
-          python3 tools/validate_native_customrom.py
+        run: python3 tools/validate_native_customrom.py
 
       - name: Android SDK
         if: steps.validate.outcome == 'success'
@@ -64,9 +62,7 @@ jobs:
         id: android_build
         if: steps.validate.outcome == 'success'
         continue-on-error: true
-        shell: bash
-        run: |
-          gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
+        run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
       - name: Collect APK and metadata
         id: collect
@@ -74,12 +70,22 @@ jobs:
         shell: bash
         run: |
           mkdir -p out/native
-          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/native/CUSTOMROM-ADB-native-debug.apk
-          APK_SHA=$(sha256sum out/native/CUSTOMROM-ADB-native-debug.apk | awk '{print $1}')
-          echo "$APK_SHA  CUSTOMROM-ADB-native-debug.apk" | tee out/native/sha256.txt
+          if [ "$GITHUB_REF_NAME" = "refactor/customrom-adb-s23-premium" ]; then
+            APK_NAME=CUSTOMROM-ADB-S23-PREMIUM-debug.apk
+            ARTIFACT_NAME=CUSTOMROM-ADB-S23-PREMIUM
+          else
+            APK_NAME=CUSTOMROM-ADB-native-debug.apk
+            ARTIFACT_NAME=CUSTOMROM-ADB-native
+          fi
+          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk "out/native/$APK_NAME"
+          APK_SHA=$(sha256sum "out/native/$APK_NAME" | awk '{print $1}')
+          echo "$APK_SHA  $APK_NAME" | tee out/native/sha256.txt
           echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
           cat > out/native/build-info.txt <<EOF
-          build=CUSTOMROM ADB native
+          build=CUSTOMROM ADB
+          branch=${GITHUB_REF_NAME}
           backend=com.flyfishxu:kadb:2.1.1
           coroutines=1.10.2
           compileSdk=36
@@ -96,62 +102,57 @@ jobs:
         if: steps.android_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: CUSTOMROM-ADB-native
+          name: ${{ steps.collect.outputs.artifact_name }}
           path: out/native/
           retention-days: 14
           if-no-files-found: error
 
-      - name: Publish machine-readable build proof
+      - name: Publish branch-local build proof
         if: always()
-        shell: bash
         env:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
           APK_SHA: ${{ steps.collect.outputs.apk_sha }}
+          APK_NAME: ${{ steps.collect.outputs.apk_name }}
+          ARTIFACT_NAME: ${{ steps.collect.outputs.artifact_name }}
+        shell: bash
         run: |
-          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then
-            STATUS=PASS
+          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            PROOF_PATH=ci/native-build-proof.json
           else
-            STATUS=FAIL
+            PROOF_PATH=ci/s23-premium-build-proof.json
           fi
-
-          cat > /tmp/native-build-proof.json <<EOF
+          mkdir -p ci
+          cat > "$PROOF_PATH" <<EOF
           {
             "status": "${STATUS}",
             "validation": "${VALIDATE_OUTCOME}",
             "android_build": "${BUILD_OUTCOME}",
-            "artifact": "CUSTOMROM-ADB-native",
-            "apk": "CUSTOMROM-ADB-native-debug.apk",
+            "artifact": "${ARTIFACT_NAME}",
+            "apk": "${APK_NAME}",
             "apk_sha256": "${APK_SHA}",
+            "source_branch": "${GITHUB_REF_NAME}",
             "source_commit": "${GITHUB_SHA}",
             "run_id": ${GITHUB_RUN_ID},
             "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
             "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
-
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          # Sincroniza primeiro e só depois grava o arquivo compartilhado. Assim um
-          # comprovante anterior não vira conflito de rebase entre builds sobrepostas.
-          git pull --rebase origin main
-          mkdir -p ci
-          cp /tmp/native-build-proof.json ci/native-build-proof.json
-          git add ci/native-build-proof.json
+          git add "$PROOF_PATH"
           if ! git diff --cached --quiet; then
-            git commit -m "ci: record native CUSTOMROM ADB build ${STATUS}"
-            git push origin HEAD:main
-          else
-            echo "Build proof already up to date"
+            git commit -m "ci: record ${GITHUB_REF_NAME} native build ${STATUS}"
+            git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
       - name: Enforce build result
         if: always()
-        shell: bash
         env:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
+        shell: bash
         run: |
           test "$VALIDATE_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
