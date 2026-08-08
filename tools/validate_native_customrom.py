@@ -24,6 +24,10 @@ APPLICATION = APP / "app/src/main/java/com/customrom/adb/CustomromApp.kt"
 MANIFEST = APP / "app/src/main/AndroidManifest.xml"
 RECIPES = APP / "app/src/main/assets/recipes.json"
 BUILD = APP / "app/build.gradle.kts"
+SETTINGS = APP / "settings.gradle.kts"
+AGENT_MANIFEST = APP / "agent/src/main/AndroidManifest.xml"
+AGENT_ACTIVITY = APP / "agent/src/main/java/com/customrom/agent/AgentActivity.java"
+AGENT_RECEIVER = APP / "agent/src/main/java/com/customrom/agent/BootReceiver.java"
 
 MUTATING = [
     r"\bpm\s+disable",
@@ -158,6 +162,10 @@ def main() -> int:
         MANIFEST,
         RECIPES,
         BUILD,
+        SETTINGS,
+        AGENT_MANIFEST,
+        AGENT_ACTIVITY,
+        AGENT_RECEIVER,
     ):
         if not path.is_file():
             fail(f"arquivo obrigatório ausente: {path.relative_to(ROOT)}")
@@ -283,6 +291,14 @@ def main() -> int:
         "background-limits",
         "ethernet-status",
         "tempo-sistema",
+        "otimizacao-pragmatica",
+        "log-storm",
+        "adb-persistencia-diagnostico",
+        "adb-persistencia-aplicar",
+        "adb-persistencia-restaurar",
+        "customrom-agent-status",
+        "customrom-agent-preparar",
+        "abrir-depuracao-sem-fio",
     }
     missing = required_recipes - ids
     if missing:
@@ -295,6 +311,16 @@ def main() -> int:
     for rid in ("diagnostico-lentidao", "thermal", "fluidez-gfx", "wakelocks-alarmes", "jobs-agendados", "falhas-crashes", "overlays-status", "input-devices", "seguranca-boot"):
         if recipe_map[rid]["risk"] != "VERDE":
             fail(f"diagnóstico somente leitura {rid} precisa permanecer VERDE")
+
+    if 'com.omegas.v7.test' not in action_engine_src or 'ignoredOptimizationOwners' not in action_engine_src:
+        fail("ÔMEGAS precisa ser excluído automaticamente do ranking de otimização")
+    if 'ginlemon.flowerfree' not in ops_models_src or 'com.jancar.launcher' not in ops_models_src:
+        fail("papéis dos launchers Smart/Jancar precisam estar explícitos na inteligência de packages")
+    if 'include(":agent")' not in SETTINGS.read_text(encoding="utf-8"):
+        fail("CUSTOMROM Agent precisa estar incluído no build")
+    agent_manifest = AGENT_MANIFEST.read_text(encoding="utf-8")
+    if 'android.permission.WRITE_SECURE_SETTINGS' not in agent_manifest or 'android.intent.action.BOOT_COMPLETED' not in agent_manifest:
+        fail("CUSTOMROM Agent precisa declarar permissão e receiver de boot")
 
     print("VALIDATE_NATIVE_CUSTOMROM=PASS")
     print(f"recipes={len(recipes)}")
@@ -312,6 +338,12 @@ def main() -> int:
     print("change_ledger=present")
     print("persistent_adb_identity=present")
     print("mdns_reconnect=present")
+    print("pragmatic_optimization=present")
+    print("omegas_ignored_in_optimization=present")
+    print("launcher_roles=present")
+    print("adb_persistence_flow=present")
+    print("customrom_agent=present")
+    print("log_storm_diagnostic=present")
     print("evidence_export=present")
     print("adb_backend=com.flyfishxu:kadb:2.1.1")
     print("coroutines=1.10.2")

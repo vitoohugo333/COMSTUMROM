@@ -34,9 +34,14 @@ data class ActionableReport(
 object FunctionalActionEngine {
     private val packageRegex = Regex("\\b(?:[A-Za-z][A-Za-z0-9_]*\\.){2,}[A-Za-z0-9_:-]+\\b")
     private val cpuPackageRegex = Regex("(?m)^\\s*([0-9]+(?:\\.[0-9]+)?)%\\s+\\d+/([A-Za-z0-9._:-]+)")
+    private val ignoredOptimizationOwners = setOf("com.omegas.v7.test")
 
     fun analyze(recipeId: String, raw: String): ActionableReport = when (recipeId) {
         "diagnostico-lentidao", "processos", "memoria-zram" -> performanceReport(recipeId, raw)
+        "otimizacao-pragmatica" -> pragmaticOptimizationReport(raw)
+        "adb-persistencia-diagnostico", "adb-persistencia-aplicar", "adb-persistencia-restaurar" -> adbPersistenceReport(recipeId, raw)
+        "log-storm" -> logStormReport(raw)
+        "customrom-agent-status", "customrom-agent-preparar" -> agentStatusReport(raw)
 
         "boot-servicos" -> packageDiscoveryReport(
             "O que inicia junto com a central",
@@ -233,6 +238,139 @@ object FunctionalActionEngine {
         else -> genericReport(raw)
     }
 
+
+    private fun pragmaticOptimizationReport(raw: String): ActionableReport {
+        val findings = mutableListOf<String>()
+        val actions = mutableListOf<FunctionalAction>()
+        val home = lineValue(raw, "HOME_CURRENT")
+        val homePkg = home?.substringBefore('/')?.trim()
+        if (!homePkg.isNullOrBlank()) {
+            findings += when (homePkg) {
+                "ginlemon.flowerfree" -> "HOME atual confirmado: Smart Launcher. Ele é preferência do proprietário e fica protegido."
+                "com.jancar.launcher" -> "HOME atual ainda é o launcher OEM Jancar. Não o desative antes de definir o Smart Launcher como HOME."
+                else -> "HOME atual: $homePkg."
+            }
+        }
+
+        val totalKb = metric(raw, "MemTotal")
+        val availableKb = metric(raw, "MemAvailable")
+        val swapTotalKb = metric(raw, "SwapTotal")
+        val swapFreeKb = metric(raw, "SwapFree")
+        if (totalKb != null && availableKb != null && totalKb > 0) {
+            val pct = (availableKb * 100.0 / totalKb).toInt()
+            findings += "Memória disponível: ${availableKb / 1024} MB de ${totalKb / 1024} MB ($pct%)."
+        }
+        if (swapTotalKb != null && swapFreeKb != null && swapTotalKb > 0) {
+            findings += "Swap/ZRAM em uso: ${(swapTotalKb - swapFreeKb).coerceAtLeast(0) / 1024} MB de ${swapTotalKb / 1024} MB."
+        }
+
+        val cpuOwners = cpuPackageRegex.findAll(raw)
+            .mapNotNull { match ->
+                val cpu = match.groupValues[1].toDoubleOrNull() ?: return@mapNotNull null
+                val owner = match.groupValues[2].trimEnd(':')
+                if (owner == "top" || owner.startsWith("android.hardware.") || ignoredOptimizationOwners.contains(owner.substringBefore(':'))) null else cpu to owner
+            }
+            .distinctBy { it.second }
+            .sortedByDescending { it.first }
+            .take(12)
+            .toList()
+        cpuOwners.take(6).forEach { (cpu, owner) -> findings += "${formatCpu(cpu)}% de CPU: $owner" }
+
+        val webviewBusy = cpuOwners.any { (_, owner) -> owner.startsWith("com.google.android.webview") } || raw.contains("com.google.android.webview:sandboxed_process0")
+        val googleAppSeen = raw.contains("com.google.android.googlequicksearchbox")
+        if (webviewBusy && googleAppSeen) {
+            findings += "WebView pesado correlacionado ao Google App nesta fotografia. O próximo teste pode ser feito no próprio detalhe do Google App."
+            actions += FunctionalAction("Abrir Google App", "Analisar, parar temporariamente ou desativar reversivelmente com confirmação.", ActionDestination.PACKAGE, "com.google.android.googlequicksearchbox")
+        }
+        cpuOwners.firstOrNull { it.second.substringBefore(':') == "com.google.android.apps.docs" }?.let { (cpu, _) ->
+            findings += "Google Drive aparece consumindo ${formatCpu(cpu)}% de CPU nesta fotografia."
+            actions += FunctionalAction("Abrir Google Drive", "Teste temporário e controle reversível ficam no detalhe do package.", ActionDestination.PACKAGE, "com.google.android.apps.docs")
+        }
+
+        if (raw.contains("com.jancar.launcher")) {
+            actions += FunctionalAction("Abrir launcher nativo TayTech", "Launcher OEM: pode ser testado/desativado no usuário 0 se o Smart Launcher estiver como HOME.", ActionDestination.PACKAGE, "com.jancar.launcher", "AMARELO")
+        }
+
+        val wobble = lineValue(raw, "LOGTAG_WOBLE")?.toIntOrNull() ?: 0
+        if (wobble >= 100) {
+            findings += "Tempestade de log detectada: $wobble mensagens WOBLE na janela coletada. Isso merece investigação própria antes de mexer em Bluetooth/driver."
+            actions += FunctionalAction("Investigar tempestade WOBLE", "Descobre volume, PIDs e contexto sem alterar serviços automotivos.", ActionDestination.RECIPE, "log-storm")
+        }
+
+        actions += FunctionalAction("Ver apps rodando", "Explora somente os processos ativos agora.", ActionDestination.APPS_FILTER, "Rodando")
+        actions += FunctionalAction("Comparar depois", "Repete a fotografia depois de uma única mudança reversível.", ActionDestination.RECIPE, "otimizacao-pragmatica")
+
+        val summary = when {
+            cpuOwners.isNotEmpty() -> "A central foi analisada em um único fluxo. O ÔMEGAS foi excluído automaticamente e os próximos alvos são apresentados como ações, não como comandos para copiar."
+            else -> "A coleta pragmática terminou. O ÔMEGAS foi excluído da otimização e a evidência técnica ficou preservada."
+        }
+        return ActionableReport("Analisar e enxugar a central", summary, findings, actions.distinctBy { "${it.destination}:${it.target}:${it.label}" }.take(64))
+    }
+
+    private fun adbPersistenceReport(recipeId: String, raw: String): ActionableReport {
+        val findings = mutableListOf<String>()
+        val actions = mutableListOf<FunctionalAction>()
+        val enabled = lineValue(raw, "adb_enabled")
+        val wifi = lineValue(raw, "adb_wifi_enabled")
+        val persistPort = lineValue(raw, "persist_port")
+        val servicePort = lineValue(raw, "service_port")
+        val agentInstalled = lineValue(raw, "agent_installed") == "1"
+        val rollback = lineValue(raw, "rollback_available") == "1"
+
+        findings += "ADB do Android: ${enabled ?: "?"} · Wireless debugging: ${wifi ?: "?"}."
+        findings += "Porta temporária: ${servicePort?.ifBlank { "não definida" } ?: "?"} · porta persistente: ${persistPort?.ifBlank { "não definida" } ?: "?"}."
+        findings += if (agentInstalled) "CUSTOMROM Agent detectado na TayTech." else "CUSTOMROM Agent ainda não foi detectado na TayTech."
+
+        val ideal = enabled == "1" && wifi == "1" && persistPort == "5555"
+        if (ideal) {
+            findings += "A ROM aceitou o estado ideal desta estratégia: ADB ligado, Wireless debugging ligado e persist.adb.tcp.port=5555. A prova definitiva ainda é reiniciar a TayTech."
+        } else if (recipeId == "adb-persistencia-aplicar") {
+            findings += "A tentativa foi aplicada e verificada com os valores acima. O que a ROM recusou permanece explícito; nenhuma falha é mascarada."
+        }
+
+        if (!ideal) actions += FunctionalAction("Tentar ADB persistente", "Salva rollback, mantém ADB/Wireless ligados e tenta persistir 5555 sem reiniciar o daemon.", ActionDestination.RECIPE, "adb-persistencia-aplicar", "AMARELO")
+        actions += if (agentInstalled) {
+            FunctionalAction("Preparar CUSTOMROM Agent", "Concede WRITE_SECURE_SETTINGS e manda o companion aplicar a recuperação de Wireless ADB.", ActionDestination.RECIPE, "customrom-agent-preparar", "AMARELO")
+        } else {
+            FunctionalAction("Verificar CUSTOMROM Agent", "Confirma se o companion de boot está instalado e com permissão.", ActionDestination.RECIPE, "customrom-agent-status")
+        }
+        actions += FunctionalAction("Abrir opções de desenvolvedor", "Fallback visual direto na TayTech.", ActionDestination.RECIPE, "abrir-depuracao-sem-fio", "AMARELO")
+        if (rollback) actions += FunctionalAction("Restaurar configuração anterior", "Executa o rollback salvo antes da tentativa de persistência.", ActionDestination.RECIPE, "adb-persistencia-restaurar", "AMARELO")
+        actions += FunctionalAction("Conferir novamente", "Lê tudo em uma única coleta.", ActionDestination.RECIPE, "adb-persistencia-diagnostico")
+
+        return ActionableReport(
+            "ADB após reinício",
+            if (ideal) "Configuração persistente aceita nesta sessão; falta apenas o teste físico de reboot." else "O CUSTOMROM identificou o melhor caminho disponível sem exigir que você monte comandos manualmente.",
+            findings,
+            actions.distinctBy { "${it.destination}:${it.target}:${it.label}" }.take(64)
+        )
+    }
+
+    private fun logStormReport(raw: String): ActionableReport {
+        val count = lineValue(raw, "LOGTAG_WOBLE")?.toIntOrNull() ?: 0
+        val findings = mutableListOf<String>()
+        findings += if (count > 0) "$count mensagens WOBLE foram contadas na janela recente." else "Nenhuma mensagem WOBLE foi contada na janela recente."
+        if (count >= 100) findings += "Volume alto confirmado. Como WOBLE pode vir de camada wireless/driver, o CUSTOMROM não desativa Bluetooth ou serviço automotivo automaticamente."
+        val actions = listOf(
+            FunctionalAction("Cruzar com processos", "Vê CPU/processos no mesmo contexto.", ActionDestination.RECIPE, "otimizacao-pragmatica"),
+            FunctionalAction("Ver Bluetooth", "Lê o estado Bluetooth sem alterar nada.", ActionDestination.RECIPE, "bluetooth-status"),
+            FunctionalAction("Repetir tempestade de logs", "Mede novamente para confirmar recorrência.", ActionDestination.RECIPE, "log-storm")
+        )
+        return ActionableReport("Tempestade de logs", "O volume foi medido e separado da decisão de desativar qualquer componente.", findings, actions)
+    }
+
+    private fun agentStatusReport(raw: String): ActionableReport {
+        val installed = lineValue(raw, "agent_installed") == "1"
+        val granted = lineValue(raw, "write_secure_settings") == "granted"
+        val findings = mutableListOf<String>()
+        findings += if (installed) "CUSTOMROM Agent instalado." else "CUSTOMROM Agent não instalado. O artifact V6 inclui o APK companion para a TayTech."
+        if (installed) findings += if (granted) "Permissão WRITE_SECURE_SETTINGS concedida." else "Agent instalado, mas ainda sem WRITE_SECURE_SETTINGS."
+        val actions = mutableListOf<FunctionalAction>()
+        if (installed && !granted) actions += FunctionalAction("Preparar Agent agora", "Concede a permissão de desenvolvimento e executa o recovery uma vez.", ActionDestination.RECIPE, "customrom-agent-preparar", "AMARELO")
+        actions += FunctionalAction("Conferir ADB após reinício", "Volta ao diagnóstico completo de persistência.", ActionDestination.RECIPE, "adb-persistencia-diagnostico")
+        return ActionableReport("CUSTOMROM Agent", if (installed && granted) "Companion pronto para tentar reativar Wireless ADB a cada boot." else "O app mostrou exatamente o que falta para automatizar o boot.", findings, actions)
+    }
+
     private fun spotifyReport(raw: String): ActionableReport {
         val findings = mutableListOf<String>()
         val actions = mutableListOf<FunctionalAction>()
@@ -408,7 +546,7 @@ object FunctionalActionEngine {
             .mapNotNull { match ->
                 val cpu = match.groupValues[1].toDoubleOrNull() ?: return@mapNotNull null
                 val owner = match.groupValues[2].trimEnd(':')
-                if (owner == "top" || owner.startsWith("android.hardware.")) null else cpu to owner
+                if (owner == "top" || owner.startsWith("android.hardware.") || ignoredOptimizationOwners.contains(owner.substringBefore(':'))) null else cpu to owner
             }
             .distinctBy { it.second }
             .sortedByDescending { it.first }
@@ -502,6 +640,7 @@ object FunctionalActionEngine {
         .filter { candidate ->
             candidate.count { it == '.' } >= 2 &&
                 !candidate.contains("intent.action", true) &&
+                !ignoredOptimizationOwners.contains(candidate.substringBefore(':')) &&
                 !candidate.startsWith("java.") &&
                 !candidate.startsWith("kotlin.")
         }
@@ -513,8 +652,7 @@ object FunctionalActionEngine {
         val p = pkg.lowercase(Locale.ROOT)
         return when {
             p.startsWith("com.jancar") || p.contains("canbus") || p.contains("mcu") || p.contains("hiworld") -> 0
-            p.startsWith("com.omegas") -> 1
-            p.startsWith("com.google") -> 2
+            p.startsWith("com.google") -> 1
             p.startsWith("com.android") || p.startsWith("android") -> 4
             else -> 3
         }

@@ -262,8 +262,11 @@ class PremiumOpsActivity : Activity() {
         root.addView(infoStrip("TayTech", "Conexão automática e recuperável", "TOCAR PARA GERENCIAR") { showConnectionDialog() }, margins(top = 16))
 
         root.addView(sectionTitle("Ações de alto valor", "Fluxos compostos para o dia a dia"), margins(top = 22))
-        root.addView(featureAction("◇", "Por que a central está lenta?", "Memória, CPU, processos, armazenamento e thermal em uma coleta.") {
-            recipes.firstOrNull { it.id == "diagnostico-lentidao" }?.let(::runRecipe)
+        root.addView(featureAction("◇", "Analisar e enxugar a central", "Uma coleta: CPU, memória, HOME, WebView, Google, logs e próximos alvos — ÔMEGAS ignorado automaticamente.") {
+            runRecipeById("otimizacao-pragmatica")
+        }, margins(top = 8))
+        root.addView(featureAction("↻", "ADB após reinício", "Diagnostica persistência, oferece correção e fallback sem montar comandos.") {
+            runRecipeById("adb-persistencia-diagnostico")
         }, margins(top = 8))
         root.addView(featureAction("▦", "Gerenciar aplicativos", "Lista real da TayTech com criticidade, confiança, motivos e rollback.") {
             showSection("apps")
@@ -1159,6 +1162,14 @@ class PremiumOpsActivity : Activity() {
         "stayon-off" -> "Restaura a política normal de suspensão durante alimentação."
         "ui-hierarchy" -> "Prática destilada de tooling ADB: captura a árvore UI atual para entender elementos e estados."
         "diagnostico-lentidao" -> "Workflow composto: memória + CPU + top + disco + thermal."
+        "otimizacao-pragmatica" -> "Diagnóstico de um toque que ignora ÔMEGAS, identifica HOME, WebView, Google/Drive, CPU, RAM/ZRAM e tempestade WOBLE."
+        "adb-persistencia-diagnostico" -> "Lê em uma coleta se ADB, Wireless debugging, porta 5555 e CUSTOMROM Agent podem sobreviver ao reboot."
+        "adb-persistencia-aplicar" -> "Salva rollback e tenta manter ADB/Wireless + porta 5555 sem reiniciar o daemon durante a operação."
+        "adb-persistencia-restaurar" -> "Restaura os valores salvos antes da tentativa de persistência."
+        "log-storm" -> "Mede a tempestade WOBLE e contexto recente sem desligar Bluetooth ou drivers."
+        "customrom-agent-status" -> "Verifica se o companion de boot está instalado e autorizado na TayTech."
+        "customrom-agent-preparar" -> "Concede WRITE_SECURE_SETTINGS ao companion e solicita uma aplicação imediata."
+        "abrir-depuracao-sem-fio" -> "Abre diretamente as opções de desenvolvedor na TayTech como fallback visual."
         "foreground-services" -> "Serviços persistentes/foreground para descobrir quem permanece ativo."
         "appops-auditoria" -> "AppOps e permissões especiais observadas pelo Android."
         "batterystats-apps" -> "Histórico de consumo e atividade por UID/package desde a última carga."

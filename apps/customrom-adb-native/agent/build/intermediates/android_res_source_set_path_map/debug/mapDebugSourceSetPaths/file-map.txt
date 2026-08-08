@@ -1,0 +1,8 @@
+com.customrom.agent-pngs-0 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/build/generated/res/pngs/debug
+com.customrom.agent-updated_navigation_xml-1 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/build/generated/updated_navigation_xml/debug
+com.customrom.agent-packageDebugResources-2 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.customrom.agent-packageDebugResources-3 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.customrom.agent-debug-4 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/build/intermediates/merged_res/debug/mergeDebugResources
+com.customrom.agent-debug-5 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/src/debug/res
+com.customrom.agent-main-6 /home/runner/work/COMSTUMROM/COMSTUMROM/apps/customrom-adb-native/agent/src/main/res
+gradleHome-0 /home/runner/.gradle

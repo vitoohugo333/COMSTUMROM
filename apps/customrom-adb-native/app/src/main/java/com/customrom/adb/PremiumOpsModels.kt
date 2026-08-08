@@ -177,6 +177,24 @@ object PackageIntelligence {
         val metaLower = snapshot.metadata.lowercase(Locale.ROOT)
         val reasons = mutableListOf<String>()
 
+        if (packageLower == "com.omegas.v7.test") {
+            reasons += "carga obrigatória do proprietário; deve permanecer ativa e fora do debloat"
+            reasons += "o consumo do ÔMEGAS não entra no ranking de otimização da TayTech"
+            return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
+        }
+
+        if (packageLower == "ginlemon.flowerfree") {
+            reasons += "Smart Launcher escolhido pelo proprietário como HOME principal"
+            reasons += "não deve ser tratado como bloat nem receber sugestão de stop/disable"
+            return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
+        }
+
+        if (packageLower == "com.jancar.launcher") {
+            reasons += "launcher OEM da TayTech; existe launcher alternativo escolhido pelo proprietário"
+            reasons += "controle avançado reversível permitido após confirmar o HOME atual"
+            return PackageAssessment(PackageCriticality.HIGH, AssessmentConfidence.HIGH, reasons, true)
+        }
+
         if (knownProtectedPrefixes.any { packageLower == it || packageLower.startsWith("$it.") }) {
             reasons += "pertence ao núcleo Android, conectividade ou camada de hardware protegida"
             return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
@@ -246,6 +264,10 @@ object PackageIntelligence {
             "com.android.chrome" to "Chrome",
             "com.google.android.apps.maps" to "Google Maps",
             "com.spotify.music" to "Spotify",
+            "com.omegas.v7.test" to "ÔMEGAS V7",
+            "ginlemon.flowerfree" to "Smart Launcher",
+            "com.google.android.googlequicksearchbox" to "Google App",
+            "com.google.android.apps.docs" to "Google Drive",
             "com.android.settings" to "Configurações",
             "com.android.systemui" to "Sistema Android",
             "com.jancar.launcher" to "Launcher Jancar",

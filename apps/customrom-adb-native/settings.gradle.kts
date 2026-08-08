@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CUSTOMROM-ADB"
 include(":app")
+include(":agent")

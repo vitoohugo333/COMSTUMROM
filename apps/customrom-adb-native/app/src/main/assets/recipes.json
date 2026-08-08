@@ -439,5 +439,61 @@
     "risk": "VERDE",
     "command": "echo '=== SPOTIFY PACKAGE ==='; dumpsys package com.spotify.music 2>/dev/null | grep -E 'versionName=|versionCode=|minSdk=|targetSdk=|primaryCpuAbi=|secondaryCpuAbi=|codePath=|flags=' | head -n 100; echo; echo '=== SYSTEM COMPAT ==='; echo system_release=$(getprop ro.build.version.release); echo system_sdk=$(getprop ro.build.version.sdk); echo system_security_patch=$(getprop ro.build.version.security_patch); echo system_abi=$(getprop ro.product.cpu.abi); echo system_abilist=$(getprop ro.product.cpu.abilist); echo system_abilist64=$(getprop ro.product.cpu.abilist64); echo; echo '=== SPOTIFY PROCESS ==='; echo spotify_pid=$(pidof com.spotify.music 2>/dev/null); dumpsys meminfo com.spotify.music 2>/dev/null | head -n 180; echo; echo '=== SYSTEM MEMORY ==='; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo; cat /proc/swaps 2>/dev/null; echo; echo '=== CPU RELEVANT ==='; dumpsys cpuinfo 2>/dev/null | grep -E 'com.spotify.music|com.google.android.gms|system_server|surfaceflinger|audioserver' | head -n 100; echo; echo '=== SPOTIFY GFX ==='; dumpsys gfxinfo com.spotify.music 2>/dev/null | head -n 240; echo; echo '=== AUDIO ==='; dumpsys audio 2>/dev/null | grep -i -E 'spotify|music|AudioTrack|focus|A2DP|active' | head -n 240; echo; echo '=== MEDIA SESSION ==='; dumpsys media_session 2>/dev/null | grep -i -E -A8 -B4 'spotify|com.spotify.music' | head -n 180; echo; echo '=== EXIT INFO ==='; dumpsys activity exit-info com.spotify.music 2>/dev/null | head -n 180; echo; echo '=== THERMAL ==='; dumpsys thermalservice 2>/dev/null | head -n 100; echo; echo '=== RECENT LOGS ==='; PID=$(pidof com.spotify.music 2>/dev/null); PID=${PID%% *}; if [ -n \"$PID\" ]; then logcat -d -v threadtime -t 1600 2>/dev/null | grep -E \" $PID |com\\.spotify\\.music|m\\.spotify\\.musi|AudioFlinger|AudioTrack|MediaCodec|CCodec|lmkd|lowmemorykiller|Choreographer|BluetoothA2dp\" | tail -n 500; else logcat -d -v threadtime -t 1200 2>/dev/null | grep -E 'com\\.spotify\\.music|m\\.spotify\\.musi|Spotify' | tail -n 300; fi",
     "output": "63_spotify_diagnostico.txt"
+  },
+  {
+    "id": "otimizacao-pragmatica",
+    "name": "Analisar e enxugar a central",
+    "risk": "VERDE",
+    "command": "echo '=== CUSTOMROM OTIMIZACAO PRAGMATICA ==='; HOME=$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null | tail -n 1); echo HOME_CURRENT=$HOME; echo; echo '=== MEMORIA ==='; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo; echo '=== CPU ==='; dumpsys cpuinfo 2>/dev/null | head -n 90; echo; echo '=== TOP ==='; top -b -n 1 -m 35 2>/dev/null || top -n 1; echo; echo '=== WEBVIEW ==='; ps -A | grep -E 'webview|chromium' | head -n 40; for P in $(ps -A | grep 'com.google.android.webview:sandboxed_process0' | awk '{print $2}' | head -n 3); do echo WEBVIEW_PID=$P; dumpsys activity processes 2>/dev/null | grep -B18 -A24 \"$P\" | head -n 80; done; echo; echo '=== ALVOS CONHECIDOS ==='; for PKG in com.google.android.googlequicksearchbox com.google.android.apps.docs ginlemon.flowerfree com.jancar.launcher; do echo ---$PKG---; pm path $PKG 2>/dev/null; pidof $PKG 2>/dev/null; done; echo; echo '=== LOG STORM ==='; W=$(logcat -d -v tag -t 1500 2>/dev/null | grep -c '^WOBLE' || true); echo LOGTAG_WOBLE=$W; logcat -d -v tag -t 1500 2>/dev/null | awk -F: '{gsub(/^ +| +$/,\"\",$1); if($1!=\"\") print $1}' | sort | uniq -c | sort -nr | head -n 20",
+    "output": "64_otimizacao_pragmatica.txt"
+  },
+  {
+    "id": "log-storm",
+    "name": "Investigar tempestade WOBLE",
+    "risk": "VERDE",
+    "command": "echo '=== WOBLE COUNT ==='; W=$(logcat -d -v threadtime -t 2000 2>/dev/null | grep -c ' WOBLE ' || true); echo LOGTAG_WOBLE=$W; echo; echo '=== AMOSTRA ==='; logcat -d -v threadtime -t 2000 2>/dev/null | grep ' WOBLE ' | tail -n 160; echo; echo '=== PIDS RECENTES ==='; logcat -d -v threadtime -t 2000 2>/dev/null | grep ' WOBLE ' | awk '{print $3}' | sort | uniq -c | sort -nr | head -n 20; echo; echo '=== PROCESSOS ==='; ps -A",
+    "output": "65_tempestade_woble.txt"
+  },
+  {
+    "id": "adb-persistencia-diagnostico",
+    "name": "ADB após reinício — diagnosticar",
+    "risk": "VERDE",
+    "command": "echo '=== ADB PERSISTENCIA ==='; echo build_type=$(getprop ro.build.type); echo debuggable=$(getprop ro.debuggable); echo adb_secure=$(getprop ro.adb.secure); echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled); echo service_port=$(getprop service.adb.tcp.port); echo persist_port=$(getprop persist.adb.tcp.port); echo adbd_state=$(getprop init.svc.adbd); if pm path com.customrom.agent >/dev/null 2>&1; then echo agent_installed=1; else echo agent_installed=0; fi; if [ -f /storage/emulated/0/CUSTOMROM/experimentos/adb_persistencia_rollback.sh ]; then echo rollback_available=1; else echo rollback_available=0; fi; echo; ss -lnt 2>/dev/null | grep -E ':5555|:37[0-9]{3}|:4[0-9]{4}' || true",
+    "output": "66_adb_persistencia_diagnostico.txt"
+  },
+  {
+    "id": "adb-persistencia-aplicar",
+    "name": "Tentar manter ADB após reinício",
+    "risk": "AMARELO",
+    "command": "mkdir -p /storage/emulated/0/CUSTOMROM/experimentos; R=/storage/emulated/0/CUSTOMROM/experimentos/adb_persistencia_rollback.sh; A=$(settings get global adb_enabled); W=$(settings get global adb_wifi_enabled); P=$(getprop persist.adb.tcp.port); { echo '#!/system/bin/sh'; if [ \"$A\" = null ] || [ -z \"$A\" ]; then echo 'settings delete global adb_enabled'; else echo \"settings put global adb_enabled '$A'\"; fi; if [ \"$W\" = null ] || [ -z \"$W\" ]; then echo 'settings delete global adb_wifi_enabled'; else echo \"settings put global adb_wifi_enabled '$W'\"; fi; if [ -n \"$P\" ]; then echo \"setprop persist.adb.tcp.port '$P'\"; else echo \"setprop persist.adb.tcp.port ''\"; fi; } > $R; chmod 700 $R 2>/dev/null || true; settings put global adb_enabled 1 2>&1; settings put global adb_wifi_enabled 1 2>&1; if [ \"$(getprop ro.adb.secure)\" = 1 ]; then setprop persist.adb.tcp.port 5555 2>&1; else echo 'persist_port_nao_alterada: adb_secure != 1'; fi; echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled); echo service_port=$(getprop service.adb.tcp.port); echo persist_port=$(getprop persist.adb.tcp.port); if pm path com.customrom.agent >/dev/null 2>&1; then echo agent_installed=1; else echo agent_installed=0; fi; echo rollback_available=1",
+    "output": "67_adb_persistencia_aplicada.txt"
+  },
+  {
+    "id": "adb-persistencia-restaurar",
+    "name": "Restaurar configuração ADB anterior",
+    "risk": "AMARELO",
+    "command": "R=/storage/emulated/0/CUSTOMROM/experimentos/adb_persistencia_rollback.sh; if [ ! -f $R ]; then echo 'rollback não encontrado'; exit 2; fi; sh $R; RC=$?; echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled); echo service_port=$(getprop service.adb.tcp.port); echo persist_port=$(getprop persist.adb.tcp.port); if pm path com.customrom.agent >/dev/null 2>&1; then echo agent_installed=1; else echo agent_installed=0; fi; echo rollback_available=1; exit $RC",
+    "output": "68_adb_persistencia_restaurada.txt"
+  },
+  {
+    "id": "customrom-agent-status",
+    "name": "CUSTOMROM Agent — estado",
+    "risk": "VERDE",
+    "command": "if pm path com.customrom.agent >/dev/null 2>&1; then echo agent_installed=1; else echo agent_installed=0; exit 0; fi; if dumpsys package com.customrom.agent 2>/dev/null | grep -A8 'grantedPermissions' | grep -q 'android.permission.WRITE_SECURE_SETTINGS'; then echo write_secure_settings=granted; else echo write_secure_settings=missing; fi; echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled)",
+    "output": "69_customrom_agent_status.txt"
+  },
+  {
+    "id": "customrom-agent-preparar",
+    "name": "Preparar CUSTOMROM Agent",
+    "risk": "AMARELO",
+    "command": "if ! pm path com.customrom.agent >/dev/null 2>&1; then echo 'CUSTOMROM Agent não instalado'; echo agent_installed=0; exit 2; fi; pm grant com.customrom.agent android.permission.WRITE_SECURE_SETTINGS 2>&1; am broadcast -a com.customrom.agent.APPLY -n com.customrom.agent/.BootReceiver 2>&1; echo agent_installed=1; if dumpsys package com.customrom.agent 2>/dev/null | grep -A8 'grantedPermissions' | grep -q 'android.permission.WRITE_SECURE_SETTINGS'; then echo write_secure_settings=granted; else echo write_secure_settings=missing; fi; echo adb_enabled=$(settings get global adb_enabled); echo adb_wifi_enabled=$(settings get global adb_wifi_enabled)",
+    "output": "70_customrom_agent_preparado.txt"
+  },
+  {
+    "id": "abrir-depuracao-sem-fio",
+    "name": "Abrir opções de desenvolvedor",
+    "risk": "AMARELO",
+    "command": "am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS 2>/dev/null || am start -a android.settings.SETTINGS",
+    "output": "71_abrir_opcoes_desenvolvedor.txt"
   }
 ]
