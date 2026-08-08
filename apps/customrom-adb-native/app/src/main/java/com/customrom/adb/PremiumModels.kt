@@ -60,6 +60,8 @@ object PremiumSafetyPolicy {
         "pm disable",
         "pm enable",
         "am force-stop",
+        "am start",
+        "am broadcast",
         "settings put",
         "pm clear",
         "svc ",
@@ -72,6 +74,8 @@ object PremiumSafetyPolicy {
         "chown ",
         "cmd package install",
         "cmd package set-",
+        "cmd overlay enable",
+        "cmd overlay disable",
         "input tap",
         "input swipe",
         "input keyevent",
@@ -120,7 +124,7 @@ object PremiumSafetyPolicy {
 
     fun explanation(risk: String): String = when (risk) {
         "VERMELHO" -> "Ação estrutural, destrutiva ou com potencial de exigir recuperação. O fluxo comum do CUSTOMROM bloqueia esta classe e exige autorização específica fora desta tela."
-        "AMARELO" -> "Ação que altera estado ou interage ativamente com o alvo. Confirme o efeito esperado e mantenha o caminho de restauração visível quando houver rollback."
+        "AMARELO" -> "Ação que altera estado, abre uma superfície remota ou interage ativamente com o alvo. Confirme o efeito esperado e mantenha o caminho de restauração visível quando houver rollback."
         else -> "Somente leitura ou ação observacional."
     }
 }
