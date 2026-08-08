@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://customrom.local/schemas/evidence-pack.schema.json",
+  "title": "CUSTOMROM Evidence Pack",
+  "type": "object",
+  "required": ["schema", "session", "target", "connection", "executions", "files"],
+  "properties": {
+    "schema": {"const": 1},
+    "session": {
+      "type": "object",
+      "required": ["id", "title", "startedAt"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "startedAt": {"type": "string"},
+        "endedAt": {"type": ["string", "null"]},
+        "notes": {"type": "string"},
+        "investigation": {"type": "string"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string"},
+        "model": {"type": "string"},
+        "manufacturer": {"type": "string"},
+        "build": {"type": "string"},
+        "board": {"type": "string"},
+        "abi": {"type": "string"}
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "strategy": {"enum": ["alive", "last-endpoint", "tcp-5555", "mdns", "manual", "pairing"]},
+        "endpoint": {"type": "string"},
+        "paired": {"type": "boolean"},
+        "reconnectCount": {"type": "integer", "minimum": 0},
+        "transportErrors": {"type": "integer", "minimum": 0}
+      }
+    },
+    "executions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "startedAt", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "kind": {"enum": ["command", "recipe", "logcat", "file", "system"]},
+          "title": {"type": "string"},
+          "command": {"type": "string"},
+          "recipeId": {"type": "string"},
+          "risk": {"enum": ["VERDE", "AMARELO", "VERMELHO"]},
+          "startedAt": {"type": "string"},
+          "endedAt": {"type": ["string", "null"]},
+          "status": {"enum": ["PASS", "PARTIAL", "FAIL", "CANCELLED", "RUNNING"]},
+          "exitCode": {"type": ["integer", "null"]},
+          "stdoutFile": {"type": "string"},
+          "stderrFile": {"type": "string"},
+          "transportError": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "role"],
+        "properties": {
+          "path": {"type": "string"},
+          "role": {"enum": ["terminal", "logcat", "device-info", "report", "screenshot", "attachment", "index"]},
+          "sha256": {"type": "string"},
+          "size": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}
