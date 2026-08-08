@@ -130,21 +130,45 @@ data class PackageAssessment(
 )
 
 object PackageIntelligence {
+    /**
+     * Tokens que indicam integração veicular forte. Estes permanecem protegidos no fluxo comum.
+     * A marca/fabricante isoladamente não é critério suficiente: `com.jancar.launcher`, por exemplo,
+     * não vira protegido apenas por conter Jancar.
+     */
     private val automotiveTokens = listOf(
-        "canbus", "canbox", "jancar", "hiworld", "mcu", "vehicle", "carservice", "car.service",
+        "canbus", "canbox", "hiworld", "mcu", "vehicle", "carservice", "car.service",
         "hvac", "climate", "reverse", "rearview", "camera", "parking", "sensor", "steering",
-        "radio", "dsp", "amplifier", "audio", "bluetooth", "btservice", "accservice", "sleep", "wake"
+        "radio", "dsp", "amplifier", "accservice", "sleep", "wake"
     )
 
+    /** Funções importantes, mas que podem ser testadas manualmente em modo avançado quando não protegidas. */
     private val coreTokens = listOf(
-        "systemui", "permissioncontroller", "packageinstaller", "networkstack", "settings",
         "telephony", "phone", "launcher", "inputmethod", "providers.settings", "externalstorage",
-        "downloads.provider", "documentsui", "wifi", "ethernet", "location", "framework"
+        "downloads.provider", "documentsui", "wifi", "ethernet", "location", "framework",
+        "bluetooth", "btservice", "audio", "ota", "updater"
     )
 
+    /**
+     * Núcleo Android/hardware que não deve receber stop/disable pelo fluxo visual comum.
+     * A lista é deliberadamente pequena e baseada em função, não em ser apenas "app de sistema".
+     */
     private val knownProtectedPrefixes = listOf(
-        "android", "com.android.systemui", "com.android.settings", "com.android.phone",
-        "com.google.android.permissioncontroller", "com.google.android.networkstack"
+        "android",
+        "com.android.systemui",
+        "com.android.settings",
+        "com.android.phone",
+        "com.android.shell",
+        "com.android.permissioncontroller",
+        "com.android.packageinstaller",
+        "com.android.providers.settings",
+        "com.android.providers.media",
+        "com.android.providers.downloads",
+        "com.android.keychain",
+        "com.android.networkstack",
+        "com.google.android.permissioncontroller",
+        "com.google.android.networkstack",
+        "com.qualcomm",
+        "com.mediatek"
     )
 
     fun assess(snapshot: PackageSnapshot): PackageAssessment {
@@ -153,12 +177,17 @@ object PackageIntelligence {
         val metaLower = snapshot.metadata.lowercase(Locale.ROOT)
         val reasons = mutableListOf<String>()
 
+        if (knownProtectedPrefixes.any { packageLower == it || packageLower.startsWith("$it.") }) {
+            reasons += "pertence ao núcleo Android, conectividade ou camada de hardware protegida"
+            return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
+        }
+
         val automotiveHits = automotiveTokens.filter { token ->
             packageLower.contains(token) || pathLower.contains(token) || metaLower.contains(token)
         }
         if (automotiveHits.isNotEmpty()) {
             reasons += "sinais automotivos detectados: ${automotiveHits.distinct().take(4).joinToString()}"
-            if (pathLower.contains("/vendor/") || pathLower.contains("/system/priv-app/")) {
+            if (pathLower.contains("/vendor/") || pathLower.contains("/odm/") || pathLower.contains("/system/priv-app/")) {
                 reasons += "componente instalado em área privilegiada/vendor"
             }
             if (metaLower.contains("persistent") || metaLower.contains("boot_completed")) {
@@ -167,25 +196,25 @@ object PackageIntelligence {
             return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
         }
 
-        if (knownProtectedPrefixes.any { packageLower == it || packageLower.startsWith("$it.") }) {
-            reasons += "pertence ao núcleo Android/serviço essencial conhecido"
+        val vendor = pathLower.contains("/vendor/") || pathLower.contains("/odm/")
+        if (vendor) {
+            reasons += "APK pertence à partição vendor/odm e pode integrar hardware da central"
             return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
         }
 
         val coreHits = coreTokens.filter { packageLower.contains(it) || metaLower.contains(it) }
         val privileged = pathLower.contains("/system/priv-app/") || pathLower.contains("/apex/")
-        val vendor = pathLower.contains("/vendor/") || pathLower.contains("/odm/")
         val system = snapshot.kind.equals("Sistema", true) || pathLower.contains("/system/") || pathLower.contains("/product/")
         val userApp = snapshot.kind.equals("Usuário", true) || pathLower.contains("/data/app/")
         val persistent = metaLower.contains("persistent=true") || metaLower.contains("flags=[ persistent") || metaLower.contains("boot_completed")
         val sharedSystemUid = metaLower.contains("shareduserid=android.uid") || metaLower.contains("shared user") && metaLower.contains("android.uid")
 
-        if (coreHits.isNotEmpty() || privileged || vendor || persistent || sharedSystemUid) {
-            if (coreHits.isNotEmpty()) reasons += "função central detectada: ${coreHits.distinct().take(4).joinToString()}"
+        if (coreHits.isNotEmpty() || privileged || persistent || sharedSystemUid) {
+            if (coreHits.isNotEmpty()) reasons += "função relevante detectada: ${coreHits.distinct().take(4).joinToString()}"
             if (privileged) reasons += "APK em /system/priv-app ou APEX"
-            if (vendor) reasons += "APK em partição vendor/odm"
             if (persistent) reasons += "indício de processo persistente/boot receiver"
             if (sharedSystemUid) reasons += "indício de UID compartilhado do sistema"
+            reasons += "não há sinal automotivo forte; controle avançado continua disponível com confirmação"
             return PackageAssessment(PackageCriticality.HIGH, AssessmentConfidence.HIGH, reasons, false)
         }
 
@@ -198,11 +227,13 @@ object PackageIntelligence {
 
         if (system) {
             reasons += "aplicativo faz parte da imagem de sistema/produto"
-            reasons += "nenhum sinal automotivo forte foi encontrado, mas dependências ainda são incertas"
-            return PackageAssessment(PackageCriticality.MEDIUM, AssessmentConfidence.MEDIUM, reasons, false)
+            reasons += "nenhum sinal automotivo forte foi encontrado"
+            reasons += "pode ser testado de forma reversível no usuário 0, com confirmação e rollback"
+            return PackageAssessment(PackageCriticality.MEDIUM, AssessmentConfidence.MEDIUM, reasons, true)
         }
 
         reasons += "evidência insuficiente para classificar com segurança"
+        reasons += "controle avançado pode ser usado manualmente; a classificação não promete segurança"
         return PackageAssessment(PackageCriticality.UNKNOWN, AssessmentConfidence.LOW, reasons, false)
     }
 
@@ -214,7 +245,14 @@ object PackageIntelligence {
             "com.google.android.apps.maps" to "Google Maps",
             "com.spotify.music" to "Spotify",
             "com.android.settings" to "Configurações",
-            "com.android.systemui" to "Sistema Android"
+            "com.android.systemui" to "Sistema Android",
+            "com.jancar.launcher" to "Launcher Jancar",
+            "com.jancar.radio" to "Rádio Jancar",
+            "com.jancar.music" to "Música Jancar",
+            "com.jancar.ota" to "Atualizações Jancar",
+            "com.jancar.bluetooth" to "Bluetooth Jancar",
+            "com.jancar.btservice" to "Serviço Bluetooth Jancar",
+            "com.jancar.services" to "Serviços Jancar"
         )
         known[packageName]?.let { return it }
         val tail = packageName.substringAfterLast('.').replace('_', ' ').replace('-', ' ').trim()
