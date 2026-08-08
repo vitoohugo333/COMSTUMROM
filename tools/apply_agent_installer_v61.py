@@ -256,3 +256,4 @@ replace_once(
 )
 
 print("APPLY_AGENT_INSTALLER_V61=OK")
+# CI trigger: V6.1 one-tap Agent installer gate.
