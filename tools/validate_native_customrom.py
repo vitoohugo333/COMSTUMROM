@@ -65,7 +65,6 @@ REQUIRED_OPS_SIGNALS = [
     "pm enable --user 0",
     "am force-stop --user 0",
     "Por que a central está lenta?",
-    "Nenhum texto foi retornado",
     "Alterações feitas pelo CUSTOMROM",
     "Evidence Pack",
 ]
@@ -78,6 +77,7 @@ REQUIRED_MODEL_SIGNALS = [
     "AssessmentConfidence",
     "candidateForReversibleTest",
     "wasDisabledByCustomrom",
+    "Nenhum texto foi retornado pelo comando",
 ]
 
 REQUIRED_CONTROLLER_SIGNALS = [
