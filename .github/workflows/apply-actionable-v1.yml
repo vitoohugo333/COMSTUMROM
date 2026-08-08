@@ -1,0 +1,44 @@
+name: Apply actionable journey refactor
+
+on:
+  push:
+    branches:
+      - refactor/customrom-adb-s23-premium
+    paths:
+      - .github/workflows/apply-actionable-v1.yml
+      - scripts/ci/apply-actionable-v1.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/customrom-adb-s23-premium
+          fetch-depth: 0
+
+      - name: Apply deterministic refactor
+        run: python3 scripts/ci/apply-actionable-v1.py
+
+      - name: Verify expected product markers
+        run: |
+          grep -q 'FunctionalActionEngine.analyze' apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt
+          grep -q 'O que você pode fazer agora' apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt
+          grep -q 'O que inicia junto com a central?' apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt
+          grep -q 'Ver evidência técnica' apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt
+
+      - name: Commit transformed source
+        run: |
+          if git diff --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt
+          git commit -m 'feat: turn recipe outputs into actionable journeys'
+          git push origin HEAD:refactor/customrom-adb-s23-premium
