@@ -28,31 +28,40 @@ jobs:
           java-version: '17'
 
       - name: Validate native CUSTOMROM contract
+        id: validate
+        continue-on-error: true
         shell: bash
         run: |
           python3 tools/validate_native_customrom.py
 
       - name: Android SDK
+        if: steps.validate.outcome == 'success'
         uses: android-actions/setup-android@v3
 
       - name: Install SDK 35
+        if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Setup Gradle
+        if: steps.validate.outcome == 'success'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
       - name: Build debug APK
+        id: android_build
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
       - name: Collect APK and metadata
         id: collect
+        if: steps.android_build.outcome == 'success'
         shell: bash
         run: |
           mkdir -p out/native
@@ -71,6 +80,7 @@ jobs:
           EOF
 
       - name: Upload APK
+        if: steps.android_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: CUSTOMROM-ADB-native
@@ -79,14 +89,24 @@ jobs:
           if-no-files-found: error
 
       - name: Publish machine-readable build proof
+        if: always()
         shell: bash
         env:
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          BUILD_OUTCOME: ${{ steps.android_build.outcome }}
           APK_SHA: ${{ steps.collect.outputs.apk_sha }}
         run: |
+          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then
+            STATUS=PASS
+          else
+            STATUS=FAIL
+          fi
           mkdir -p ci
           cat > ci/native-build-proof.json <<EOF
           {
-            "status": "PASS",
+            "status": "${STATUS}",
+            "validation": "${VALIDATE_OUTCOME}",
+            "android_build": "${BUILD_OUTCOME}",
             "artifact": "CUSTOMROM-ADB-native",
             "apk": "CUSTOMROM-ADB-native-debug.apk",
             "apk_sha256": "${APK_SHA}",
@@ -99,9 +119,16 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/native-build-proof.json
-          if git diff --cached --quiet; then
-            echo 'Build proof unchanged.'
-          else
-            git commit -m 'ci: record successful native CUSTOMROM ADB build'
-            git push origin HEAD:main
-          fi
+          git commit -m "ci: record native CUSTOMROM ADB build ${STATUS}" || true
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Enforce build result
+        if: always()
+        shell: bash
+        env:
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          BUILD_OUTCOME: ${{ steps.android_build.outcome }}
+        run: |
+          test "$VALIDATE_OUTCOME" = "success"
+          test "$BUILD_OUTCOME" = "success"
