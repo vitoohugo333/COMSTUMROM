@@ -8,13 +8,13 @@
   "upload": "success",
   "artifact": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1",
   "app_apk": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1-debug.apk",
-  "app_sha256": "0c1b499ea1b39b4e85536dff110907354d1a1399841d82f09d67b59cbe32272c",
+  "app_sha256": "018bb78c27697f045e1a5706badebe5b8d83e1c2603d6e3f322185d55a5ea338",
   "agent_apk": "CUSTOMROM-Agent-TayTech-debug.apk",
-  "agent_sha256": "570ec7956871101dedcad8a6049c247855d592e3da3262246b113fc978b4263c",
+  "agent_sha256": "a24a5084555351c0d7aeca4b35f6a2620d60b4dad36c361ee06a24c9add05734",
   "agent_embedded": true,
   "source_branch": "refactor/customrom-adb-s23-premium",
-  "source_commit": "dfb060507008d59a1e5f19f1bddfe7009b70b866",
-  "run_id": 31281705003,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31281705003",
-  "finished_at_utc": "2026-08-08T22:28:30Z"
+  "source_commit": "d0fa9f0caafd089774b45f524e9a32b51c72e6d7",
+  "run_id": 31281894532,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31281894532",
+  "finished_at_utc": "2026-08-08T22:33:13Z"
 }
