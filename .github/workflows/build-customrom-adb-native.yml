@@ -10,7 +10,7 @@ on:
       - '.github/workflows/build-customrom-adb-native.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -52,17 +52,22 @@ jobs:
           gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
       - name: Collect APK and metadata
+        id: collect
         shell: bash
         run: |
           mkdir -p out/native
           cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/native/CUSTOMROM-ADB-native-debug.apk
-          sha256sum out/native/CUSTOMROM-ADB-native-debug.apk | tee out/native/sha256.txt
+          APK_SHA=$(sha256sum out/native/CUSTOMROM-ADB-native-debug.apk | awk '{print $1}')
+          echo "$APK_SHA  CUSTOMROM-ADB-native-debug.apk" | tee out/native/sha256.txt
+          echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
           cat > out/native/build-info.txt <<EOF
           build=CUSTOMROM ADB native
           backend=com.flyfishxu:kadb:2.1.3
           minSdk=29
           targetSdk=35
-          commit=${GITHUB_SHA}
+          source_commit=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
+          run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           EOF
 
       - name: Upload APK
@@ -72,3 +77,31 @@ jobs:
           path: out/native/
           retention-days: 14
           if-no-files-found: error
+
+      - name: Publish machine-readable build proof
+        shell: bash
+        env:
+          APK_SHA: ${{ steps.collect.outputs.apk_sha }}
+        run: |
+          mkdir -p ci
+          cat > ci/native-build-proof.json <<EOF
+          {
+            "status": "PASS",
+            "artifact": "CUSTOMROM-ADB-native",
+            "apk": "CUSTOMROM-ADB-native-debug.apk",
+            "apk_sha256": "${APK_SHA}",
+            "source_commit": "${GITHUB_SHA}",
+            "run_id": ${GITHUB_RUN_ID},
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ci/native-build-proof.json
+          if git diff --cached --quiet; then
+            echo 'Build proof unchanged.'
+          else
+            git commit -m 'ci: record successful native CUSTOMROM ADB build'
+            git push origin HEAD:main
+          fi
