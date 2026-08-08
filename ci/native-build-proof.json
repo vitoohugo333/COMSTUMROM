@@ -5,8 +5,8 @@
   "artifact": "CUSTOMROM-ADB-native",
   "apk": "CUSTOMROM-ADB-native-debug.apk",
   "apk_sha256": "",
-  "source_commit": "044abdd1c73f7ce7061036e7e07310bce13de989",
-  "run_id": 31233696504,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31233696504",
-  "built_at_utc": "2026-08-08T01:54:06Z"
+  "source_commit": "760fee21b9bed2153bb8da4d19a0cee0cac8890e",
+  "run_id": 31233760119,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31233760119",
+  "built_at_utc": "2026-08-08T01:55:51Z"
 }
