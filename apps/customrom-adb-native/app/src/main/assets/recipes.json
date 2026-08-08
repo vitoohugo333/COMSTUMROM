@@ -432,5 +432,12 @@
     "risk": "VERDE",
     "command": "echo '=== DATE ==='; date; echo 'timezone='$(getprop persist.sys.timezone); echo 'auto_time='$(settings get global auto_time); echo 'auto_time_zone='$(settings get global auto_time_zone)",
     "output": "62_tempo_sistema.txt"
+  },
+  {
+    "id": "spotify-diagnostico",
+    "name": "Por que o Spotify está lento?",
+    "risk": "VERDE",
+    "command": "echo '=== SPOTIFY PACKAGE ==='; dumpsys package com.spotify.music 2>/dev/null | grep -E 'versionName=|versionCode=|minSdk=|targetSdk=|primaryCpuAbi=|secondaryCpuAbi=|codePath=|flags=' | head -n 100; echo; echo '=== SYSTEM COMPAT ==='; echo system_release=$(getprop ro.build.version.release); echo system_sdk=$(getprop ro.build.version.sdk); echo system_security_patch=$(getprop ro.build.version.security_patch); echo system_abi=$(getprop ro.product.cpu.abi); echo system_abilist=$(getprop ro.product.cpu.abilist); echo system_abilist64=$(getprop ro.product.cpu.abilist64); echo; echo '=== SPOTIFY PROCESS ==='; echo spotify_pid=$(pidof com.spotify.music 2>/dev/null); dumpsys meminfo com.spotify.music 2>/dev/null | head -n 180; echo; echo '=== SYSTEM MEMORY ==='; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo; cat /proc/swaps 2>/dev/null; echo; echo '=== CPU RELEVANT ==='; dumpsys cpuinfo 2>/dev/null | grep -E 'com.spotify.music|com.google.android.gms|system_server|surfaceflinger|audioserver' | head -n 100; echo; echo '=== SPOTIFY GFX ==='; dumpsys gfxinfo com.spotify.music 2>/dev/null | head -n 240; echo; echo '=== AUDIO ==='; dumpsys audio 2>/dev/null | grep -i -E 'spotify|music|AudioTrack|focus|A2DP|active' | head -n 240; echo; echo '=== MEDIA SESSION ==='; dumpsys media_session 2>/dev/null | grep -i -E -A8 -B4 'spotify|com.spotify.music' | head -n 180; echo; echo '=== EXIT INFO ==='; dumpsys activity exit-info com.spotify.music 2>/dev/null | head -n 180; echo; echo '=== THERMAL ==='; dumpsys thermalservice 2>/dev/null | head -n 100; echo; echo '=== RECENT LOGS ==='; PID=$(pidof com.spotify.music 2>/dev/null); PID=${PID%% *}; if [ -n \"$PID\" ]; then logcat -d -v threadtime -t 1600 2>/dev/null | grep -E \" $PID |com\\.spotify\\.music|m\\.spotify\\.musi|AudioFlinger|AudioTrack|MediaCodec|CCodec|lmkd|lowmemorykiller|Choreographer|BluetoothA2dp\" | tail -n 500; else logcat -d -v threadtime -t 1200 2>/dev/null | grep -E 'com\\.spotify\\.music|m\\.spotify\\.musi|Spotify' | tail -n 300; fi",
+    "output": "63_spotify_diagnostico.txt"
   }
 ]
