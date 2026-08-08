@@ -10,7 +10,10 @@ O foco é exclusivamente:
 2. continuidade da sessão quando app/rede oscilam;
 3. entrada e saída de comandos mais operacional;
 4. interface CUSTOMROM reduzida ao fluxo real;
-5. preservação de recursos existentes fora desse caminho.
+5. preservação de recursos existentes fora desse caminho;
+6. empacotamento de evidências para uso direto no ChatGPT;
+7. rotinas de diagnóstico CUSTOMROM em um toque;
+8. sistema de perfis/alvos sem exigir que o usuário entenda IP, porta ou mDNS.
 
 ## Evidência do APK analisado
 
@@ -59,7 +62,9 @@ Requisitos:
 - interrupção explícita de comando longo;
 - saída rolável e selecionável;
 - copiar e salvar resultado;
-- histórico local curto.
+- histórico local curto;
+- favoritos/scripts reutilizáveis;
+- execução sequencial de um pacote de comandos com marcação de sucesso/falha por etapa.
 
 ### 3. UI CUSTOMROM
 
@@ -70,9 +75,75 @@ Home mínima:
 - Terminal como ação principal;
 - Arquivos como ação secundária;
 - Diagnóstico CUSTOMROM como atalho;
+- Exportar sessão como ação direta;
 - demais ferramentas existentes em **Mais**.
 
 Meta de UX: quando a TayTech estiver acessível, chegar ao shell conectado em **até dois toques**.
+
+### 4. Evidence Pack — integração com ChatGPT
+
+O app deve conseguir transformar uma sessão técnica em um pacote pronto para compartilhar no chat.
+
+Formato inicial sugerido:
+
+`CUSTOMROM_SESSION_YYYY-MM-DD_HH-mm.zip`
+
+Conteúdo:
+
+- `resumo.md` — alvo, horário, estado da conexão, build, comandos executados e erros;
+- `terminal.txt` — saída integral do shell;
+- `logcat.txt` — somente quando capturado;
+- `device-info.txt` — modelo/build/board/arquitetura;
+- `files-index.txt` — lista dos arquivos anexados ao pacote;
+- subpasta `attachments/` para screenshots, dumps ou relatórios selecionados.
+
+A exportação deve permitir:
+
+- **Compartilhar** pelo Android diretamente para ChatGPT/arquivos;
+- exportar só a última execução;
+- exportar uma sessão inteira;
+- gerar um Markdown humano para copiar no chat;
+- esconder automaticamente informações que não agregam valor quando possível.
+
+### 5. Diagnóstico CUSTOMROM
+
+Tela de rotinas prontas, sem exigir digitação de comandos:
+
+- **Estado geral da central**;
+- **Memória e ZRAM**;
+- **Processos mais pesados**;
+- **Armazenamento**;
+- **Pacotes/serviços**;
+- **Log de 30 segundos**;
+- **Snapshot completo para ChatGPT**.
+
+Cada rotina deve:
+
+1. mostrar o que será lido;
+2. executar somente comandos do nível permitido;
+3. salvar a saída com nome humano;
+4. oferecer **Enviar/Compartilhar** imediatamente.
+
+### 6. Command Recipes
+
+Em vez de depender apenas de um terminal cru, o app terá receitas reutilizáveis:
+
+- nome humano;
+- bloco de comandos;
+- nível de risco;
+- descrição do que faz;
+- pasta de saída;
+- botão executar;
+- botão exportar resultado.
+
+Exemplos:
+
+- `Fotografia inicial da central`;
+- `Memória em repouso`;
+- `Processos mais pesados`;
+- `Capturar logcat por 30 segundos`.
+
+As receitas CUSTOMROM devem ficar separadas de comandos livres.
 
 ## Etapas de execução
 
@@ -115,7 +186,17 @@ Não auditar o app inteiro.
 
 Mexer apenas em home, conexão e shell na primeira build. Recursos estáveis ficam intactos.
 
-### Etapa 5 — build e prova
+### Etapa 5 — integração de evidência
+
+Adicionar:
+
+- **Exportar sessão**;
+- pacote ZIP/Markdown;
+- compartilhamento via Android;
+- atalho **Preparar para ChatGPT**;
+- primeira coleção de receitas CUSTOMROM.
+
+### Etapa 6 — build e prova
 
 Validar:
 
@@ -129,6 +210,8 @@ Validar:
 - shell simples e multilinha;
 - comandos longos/interrupção;
 - arquivos e outras funções preservadas;
+- exportação de sessão;
+- compartilhamento de pacote;
 - crash/ANR/logcat.
 
 ## Fora do escopo inicial
@@ -153,4 +236,6 @@ A primeira build é considerada pronta para validação quando:
 3. usa 5555 como fast-path e mDNS como fallback;
 4. mantém ou reabre shell após interrupções pequenas;
 5. reduz o caminho até o terminal;
-6. não cria regressões nas funções preservadas.
+6. exporta uma sessão técnica em formato pronto para compartilhar;
+7. possui ao menos uma rotina CUSTOMROM executável em um toque;
+8. não cria regressões nas funções preservadas.
