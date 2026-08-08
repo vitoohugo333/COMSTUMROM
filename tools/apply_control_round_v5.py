@@ -29,12 +29,9 @@ def fix_generated_kotlin() -> None:
     s = s.replace('assessment.reasons.joinToString("\n")', 'assessment.reasons.joinToString("\\n")')
     s = s.replace('RC=$?', "RC=${'$'}?")
 
-    log_line = r'''        val command = "PID=${'$'}(pidof $pkg 2>/dev/null | awk '{print ${'$'}1}'); if [ -n \"${'$'}PID\" ]; then logcat -d -v threadtime --pid=${'$'}PID -t 500 2>/dev/null || logcat -d -v threadtime -t 1200 2>/dev/null | grep -F '$pkg' | tail -n 500; else echo 'Package não está rodando; buscando referências recentes'; logcat -d -v threadtime -t 1600 2>/dev/null | grep -F '$pkg' | tail -n 500; fi"'''
-    # Remover somente o escape das aspas que delimitam a string Kotlin; os \" internos
-    # continuam necessários para as aspas do teste shell [ -n "$PID" ].
-    log_line = log_line.replace('val command = \\"', 'val command = "', 1)
-    if log_line.endswith('\\"'):
-        log_line = log_line[:-2] + '"'
+    # Aspas externas pertencem à string Kotlin; somente as aspas usadas pelo shell
+    # em [ -n "$PID" ] precisam permanecer escapadas dentro dessa string.
+    log_line = '''        val command = "PID=${'$'}(pidof $pkg 2>/dev/null | awk '{print ${'$'}1}'); if [ -n \\"${'$'}PID\\" ]; then logcat -d -v threadtime --pid=${'$'}PID -t 500 2>/dev/null || logcat -d -v threadtime -t 1200 2>/dev/null | grep -F '$pkg' | tail -n 500; else echo 'Package não está rodando; buscando referências recentes'; logcat -d -v threadtime -t 1600 2>/dev/null | grep -F '$pkg' | tail -n 500; fi"'''
     s = replace_line_containing(s, 'val command = "PID=$(', log_line)
 
     ACTIVITY.write_text(s, encoding="utf-8")
