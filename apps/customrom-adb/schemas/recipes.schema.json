@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://customrom.local/schemas/recipes.schema.json",
+  "title": "CUSTOMROM Command Recipes",
+  "type": "object",
+  "required": ["schema", "project", "recipes"],
+  "properties": {
+    "schema": {"const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "recipes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "risk", "description", "output"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "title": {"type": "string", "minLength": 1},
+          "risk": {"enum": ["VERDE", "AMARELO", "VERMELHO"]},
+          "description": {"type": "string", "minLength": 1},
+          "output": {"type": "string", "minLength": 1},
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "includes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "note": {"type": "string"},
+          "timeoutSeconds": {"type": "integer", "minimum": 1},
+          "rollback": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        },
+        "oneOf": [
+          {"required": ["commands"], "not": {"required": ["includes"]}},
+          {"required": ["includes"], "not": {"required": ["commands"]}}
+        ]
+      }
+    }
+  }
+}
