@@ -42,13 +42,20 @@ object OperationPresenter {
         success = false
     )
 
-    fun transportError(title: String, message: String, durationMs: Long): HumanOperationResult = HumanOperationResult(
-        phase = OperationPhase.TRANSPORT_ERROR,
-        title = "Falha de conexão",
-        detail = "A comunicação ADB com a TayTech foi interrompida. O CUSTOMROM tentará recuperar a conexão.",
-        technical = "$title · ${durationMs} ms\n$message",
-        success = false
-    )
+    fun transportError(title: String, message: String, durationMs: Long): HumanOperationResult {
+        val timedOut = message.startsWith("TIMEOUT:")
+        return HumanOperationResult(
+            phase = OperationPhase.TRANSPORT_ERROR,
+            title = if (timedOut) "Tempo esgotado" else "Falha de conexão",
+            detail = if (timedOut) {
+                "A operação demorou além do limite de segurança e foi interrompida. A conexão será recuperada antes da próxima ação."
+            } else {
+                "A comunicação ADB com a TayTech foi interrompida. O CUSTOMROM tentará recuperar a conexão."
+            },
+            technical = "$title · ${durationMs} ms\n$message",
+            success = false
+        )
+    }
 
     fun fromShell(
         title: String,
