@@ -36,6 +36,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Test CUSTOMROM patcher
+        shell: bash
+        run: |
+          python3 tools/bugjaeger_mod/test_patch_defaults.py
+
       - name: Android SDK
         uses: android-actions/setup-android@v3
 
