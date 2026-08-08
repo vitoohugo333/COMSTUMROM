@@ -8,6 +8,7 @@ on:
       - 'apps/customrom-adb-native/**'
       - 'tools/validate_native_customrom.py'
       - 'tools/apply_control_round_v5.py'
+      - 'tools/apply_spotify_diagnostic.py'
       - '.github/workflows/build-customrom-adb-s23-premium.yml'
   workflow_dispatch:
 
@@ -44,6 +45,10 @@ jobs:
           else
             python3 tools/apply_control_round_v5.py
           fi
+
+      - name: Apply Spotify performance diagnostic
+        shell: bash
+        run: python3 tools/apply_spotify_diagnostic.py
 
       - name: Validate CUSTOMROM native contract
         id: validate
@@ -86,11 +91,12 @@ jobs:
           git add \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsModels.kt \
+            apps/customrom-adb-native/app/src/main/java/com/customrom/adb/FunctionalActionEngine.kt \
             apps/customrom-adb-native/app/src/main/assets/recipes.json \
             tools/validate_native_customrom.py
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: add contextual package control and scrollable workflows'
+            git commit -m 'feat: add contextual package control and Spotify diagnostics'
             git push origin HEAD:${GITHUB_REF_NAME}
           else
             echo 'VERIFIED_SOURCE_ALREADY_COMMITTED=1'
@@ -108,7 +114,7 @@ jobs:
           echo "$APK_SHA  CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk" | tee out/control-v5/sha256.txt
           echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
           cat > out/control-v5/build-info.txt <<EOF
-          product=CUSTOMROM ADB S23 Contextual Control V5
+          product=CUSTOMROM ADB S23 Contextual Control V5 + Spotify Diagnostic
           source_branch=${GITHUB_REF_NAME}
           source_commit=$(git rev-parse HEAD)
           run_id=${GITHUB_RUN_ID}
