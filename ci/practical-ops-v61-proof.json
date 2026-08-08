@@ -1,0 +1,20 @@
+{
+  "status": "FAIL",
+  "apply_v61": "success",
+  "validation": "success",
+  "android_build": "failure",
+  "source_commit_step": "skipped",
+  "collect": "skipped",
+  "upload": "skipped",
+  "artifact": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1",
+  "app_apk": "CUSTOMROM-ADB-S23-PRACTICAL-V6.1-debug.apk",
+  "app_sha256": "",
+  "agent_apk": "CUSTOMROM-Agent-TayTech-debug.apk",
+  "agent_sha256": "",
+  "agent_embedded": true,
+  "source_branch": "refactor/customrom-adb-s23-premium",
+  "source_commit": "ca0961839e17f7c8ad222d475ad64cdff11a5724",
+  "run_id": 31281557210,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/31281557210",
+  "finished_at_utc": "2026-08-08T22:23:59Z"
+}
