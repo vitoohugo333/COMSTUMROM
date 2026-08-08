@@ -28,7 +28,7 @@ replace_once(
     '''dependencies {
     implementation("com.flyfishxu:kadb:2.1.1")
 ''',
-    '''val embeddedAgentAssets = layout.buildDirectory.dir("generated/customromAgentAssets")
+    '''val embeddedAgentAssets = layout.buildDirectory.dir("generated/customromAgentAssets").get().asFile
 val prepareEmbeddedAgent by tasks.registering(Copy::class) {
     dependsOn(":agent:assembleDebug")
     from(project(":agent").layout.buildDirectory.file("outputs/apk/debug/agent-debug.apk"))
