@@ -768,7 +768,8 @@ class MainActivity : Activity() {
                     }
                 }
             } catch (t: Throwable) {
-                mainHandler.post { toast("Falha ao exportar: ${shortError(t)}") }
+                mainHandler.post { toast("Falha ao exportar: ${shortError(t)}")
+                }
             }
         }
     }
@@ -968,7 +969,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), 0)
         }
-        scroll.addView(root, ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        scroll.addView(root, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return root
     }
 
@@ -1056,7 +1057,7 @@ class MainActivity : Activity() {
         setTextColor(textPrimary)
         setHintTextColor(Color.rgb(103, 119, 139))
         textSize = 14f
-        singleLine = true
+        setSingleLine(true)
         inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
         backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
         background = rounded(Color.rgb(8, 13, 20), 15, stroke)
