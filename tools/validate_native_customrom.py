@@ -17,6 +17,7 @@ MAIN = APP / "app/src/main/java/com/customrom/adb/MainActivity.kt"
 PREMIUM = APP / "app/src/main/java/com/customrom/adb/PremiumMainActivity.kt"
 OPS = APP / "app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt"
 OPS_MODELS = APP / "app/src/main/java/com/customrom/adb/PremiumOpsModels.kt"
+ACTION_ENGINE = APP / "app/src/main/java/com/customrom/adb/FunctionalActionEngine.kt"
 ADB_CONTROLLER = APP / "app/src/main/java/com/customrom/adb/AdbRemoteController.kt"
 PREMIUM_MODELS = APP / "app/src/main/java/com/customrom/adb/PremiumModels.kt"
 APPLICATION = APP / "app/src/main/java/com/customrom/adb/CustomromApp.kt"
@@ -74,6 +75,35 @@ REQUIRED_OPS_SIGNALS = [
     "Evidence Pack",
 ]
 
+REQUIRED_ACTIONABLE_UI_SIGNALS = [
+    "FunctionalActionEngine.analyze",
+    "showActionableResult",
+    "renderDiagnosticActions",
+    "performFunctionalAction",
+    "openPackageFromAction",
+    "O que você pode fazer agora",
+    "O que inicia junto com a central?",
+    "Quais apps estão falhando?",
+    "Quem acorda a central?",
+    "Ver evidência técnica",
+    "diagnosticRawView.visibility = View.GONE",
+]
+
+REQUIRED_ACTION_ENGINE_SIGNALS = [
+    "enum class ActionDestination",
+    "data class FunctionalAction",
+    "data class ActionableReport",
+    "object FunctionalActionEngine",
+    '"diagnostico-lentidao"',
+    '"boot-servicos"',
+    '"falhas-crashes"',
+    '"wakelocks-alarmes"',
+    '"jobs-agendados"',
+    "ActionDestination.PACKAGE",
+    "ActionDestination.APPS_FILTER",
+    "ActionDestination.RECIPE",
+]
+
 REQUIRED_MODEL_SIGNALS = [
     "SUCCESS_EMPTY",
     "COMMAND_ERROR",
@@ -116,6 +146,7 @@ def main() -> int:
         PREMIUM,
         OPS,
         OPS_MODELS,
+        ACTION_ENGINE,
         ADB_CONTROLLER,
         PREMIUM_MODELS,
         APPLICATION,
@@ -129,6 +160,7 @@ def main() -> int:
     main_src = MAIN.read_text(encoding="utf-8")
     ops_src = OPS.read_text(encoding="utf-8")
     ops_models_src = OPS_MODELS.read_text(encoding="utf-8")
+    action_engine_src = ACTION_ENGINE.read_text(encoding="utf-8")
     controller_src = ADB_CONTROLLER.read_text(encoding="utf-8")
     premium_models_src = PREMIUM_MODELS.read_text(encoding="utf-8")
     app_src = APPLICATION.read_text(encoding="utf-8")
@@ -137,8 +169,15 @@ def main() -> int:
 
     require_signals(main_src, REQUIRED_LEGACY_SIGNALS, "MainActivity")
     require_signals(ops_src, REQUIRED_OPS_SIGNALS, "PremiumOpsActivity")
+    require_signals(ops_src, REQUIRED_ACTIONABLE_UI_SIGNALS, "PremiumOpsActivity/actionable")
     require_signals(ops_models_src, REQUIRED_MODEL_SIGNALS, "PremiumOpsModels")
+    require_signals(action_engine_src, REQUIRED_ACTION_ENGINE_SIGNALS, "FunctionalActionEngine")
     require_signals(controller_src, REQUIRED_CONTROLLER_SIGNALS, "AdbRemoteController")
+
+    if "executeOperation(recipe.name, recipe.command, recipe.risk, showDialog = false)" not in ops_src:
+        fail("receitas precisam terminar na camada acionável; log técnico não pode abrir automaticamente como resultado principal")
+    if "softButton(report.evidenceLabel)" not in ops_src:
+        fail("evidência técnica precisa permanecer disponível sob ação explícita")
 
     if 'android:name=".PremiumOpsActivity"' not in manifest:
         fail("PremiumOpsActivity não está registrada no AndroidManifest")
@@ -238,6 +277,9 @@ def main() -> int:
     print(f"recipes={len(recipes)}")
     print("launcher=PremiumOpsActivity")
     print("human_operation_states=present")
+    print("functional_action_graph=present")
+    print("raw_evidence=secondary")
+    print("actionable_boot_crash_wake_jobs=present")
     print("command_timeout=45s")
     print("package_intelligence=present")
     print("change_ledger=present")
