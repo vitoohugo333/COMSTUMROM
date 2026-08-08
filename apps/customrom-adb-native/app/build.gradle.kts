@@ -39,4 +39,8 @@ android {
 
 dependencies {
     implementation("com.flyfishxu:kadb:2.1.1")
+    // MainActivity chama Kadb.pair (suspend) através de runBlocking.
+    // Kadb 2.1.1 usa Coroutines 1.10.2; declarar a mesma versão diretamente
+    // torna a API kotlinx.coroutines disponível no classpath de compilação do app.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
