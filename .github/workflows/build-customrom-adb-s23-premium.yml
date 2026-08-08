@@ -1,4 +1,4 @@
-name: Build CUSTOMROM ADB S23 premium
+name: Build CUSTOMROM ADB S23 practical V6
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - 'tools/validate_native_customrom.py'
       - 'tools/apply_control_round_v5.py'
       - 'tools/apply_spotify_diagnostic.py'
+      - 'tools/apply_practical_ops_v6.py'
       - '.github/workflows/build-customrom-adb-s23-premium.yml'
   workflow_dispatch:
 
@@ -16,13 +17,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-customrom-adb-s23-premium-v5-${{ github.ref }}
+  group: build-customrom-adb-s23-practical-v6-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout branch
@@ -50,6 +51,10 @@ jobs:
         shell: bash
         run: python3 tools/apply_spotify_diagnostic.py
 
+      - name: Apply practical operations v6
+        shell: bash
+        run: python3 tools/apply_practical_ops_v6.py
+
       - name: Validate CUSTOMROM native contract
         id: validate
         continue-on-error: true
@@ -75,13 +80,13 @@ jobs:
         with:
           gradle-version: '9.5.0'
 
-      - name: Build premium debug APK
+      - name: Build S23 app and TayTech Agent
         id: android_build
         if: steps.validate.outcome == 'success'
         continue-on-error: true
-        run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
+        run: gradle -p apps/customrom-adb-native :agent:assembleDebug :app:assembleDebug --stacktrace
 
-      - name: Commit verified contextual control source
+      - name: Commit verified practical V6 source
         id: source_commit
         if: steps.validate.outcome == 'success' && steps.android_build.outcome == 'success'
         shell: bash
@@ -89,6 +94,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
+            apps/customrom-adb-native/settings.gradle.kts \
+            apps/customrom-adb-native/agent \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsActivity.kt \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/PremiumOpsModels.kt \
             apps/customrom-adb-native/app/src/main/java/com/customrom/adb/FunctionalActionEngine.kt \
@@ -96,62 +103,69 @@ jobs:
             tools/validate_native_customrom.py
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: add contextual package control and Spotify diagnostics'
+            git commit -m 'feat: add pragmatic optimization and adb recovery v6'
             git push origin HEAD:${GITHUB_REF_NAME}
           else
             echo 'VERIFIED_SOURCE_ALREADY_COMMITTED=1'
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Collect artifact and integrity proof
+      - name: Collect artifacts and integrity proof
         id: collect
         if: steps.android_build.outcome == 'success'
         shell: bash
         run: |
-          mkdir -p out/control-v5
-          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/control-v5/CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk
-          APK_SHA=$(sha256sum out/control-v5/CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk | awk '{print $1}')
-          echo "$APK_SHA  CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk" | tee out/control-v5/sha256.txt
-          echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
-          cat > out/control-v5/build-info.txt <<EOF
-          product=CUSTOMROM ADB S23 Contextual Control V5 + Spotify Diagnostic
+          mkdir -p out/practical-v6
+          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/practical-v6/CUSTOMROM-ADB-S23-PRACTICAL-V6-debug.apk
+          cp apps/customrom-adb-native/agent/build/outputs/apk/debug/agent-debug.apk out/practical-v6/CUSTOMROM-Agent-TayTech-debug.apk
+          APP_SHA=$(sha256sum out/practical-v6/CUSTOMROM-ADB-S23-PRACTICAL-V6-debug.apk | awk '{print $1}')
+          AGENT_SHA=$(sha256sum out/practical-v6/CUSTOMROM-Agent-TayTech-debug.apk | awk '{print $1}')
+          printf '%s  %s\n%s  %s\n' "$APP_SHA" 'CUSTOMROM-ADB-S23-PRACTICAL-V6-debug.apk' "$AGENT_SHA" 'CUSTOMROM-Agent-TayTech-debug.apk' | tee out/practical-v6/sha256.txt
+          echo "app_sha=$APP_SHA" >> "$GITHUB_OUTPUT"
+          echo "agent_sha=$AGENT_SHA" >> "$GITHUB_OUTPUT"
+          cat > out/practical-v6/build-info.txt <<EOF
+          product=CUSTOMROM ADB S23 Practical Operations V6
           source_branch=${GITHUB_REF_NAME}
           source_commit=$(git rev-parse HEAD)
           run_id=${GITHUB_RUN_ID}
           run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           recipes=$(python3 -c 'import json; print(len(json.load(open("apps/customrom-adb-native/app/src/main/assets/recipes.json"))))')
           backend=com.flyfishxu:kadb:2.1.1
+          companion=com.customrom.agent
           compileSdk=36
           targetSdk=35
           EOF
 
-      - name: Upload contextual control APK
+      - name: Upload practical V6 artifacts
         if: steps.android_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: CUSTOMROM-ADB-S23-CONTROL-V5
-          path: out/control-v5/
+          name: CUSTOMROM-ADB-S23-PRACTICAL-V6
+          path: out/practical-v6/
           retention-days: 14
           if-no-files-found: error
 
-      - name: Publish isolated contextual proof
+      - name: Publish isolated V6 proof
         if: always()
         env:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
-          APK_SHA: ${{ steps.collect.outputs.apk_sha }}
+          APP_SHA: ${{ steps.collect.outputs.app_sha }}
+          AGENT_SHA: ${{ steps.collect.outputs.agent_sha }}
         shell: bash
         run: |
           if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
           mkdir -p ci
-          cat > ci/contextual-control-v5-proof.json <<EOF
+          cat > ci/practical-ops-v6-proof.json <<EOF
           {
             "status": "${STATUS}",
             "validation": "${VALIDATE_OUTCOME}",
             "android_build": "${BUILD_OUTCOME}",
-            "artifact": "CUSTOMROM-ADB-S23-CONTROL-V5",
-            "apk": "CUSTOMROM-ADB-S23-CONTROL-V5-debug.apk",
-            "apk_sha256": "${APK_SHA}",
+            "artifact": "CUSTOMROM-ADB-S23-PRACTICAL-V6",
+            "app_apk": "CUSTOMROM-ADB-S23-PRACTICAL-V6-debug.apk",
+            "app_sha256": "${APP_SHA}",
+            "agent_apk": "CUSTOMROM-Agent-TayTech-debug.apk",
+            "agent_sha256": "${AGENT_SHA}",
             "recipes": $(python3 -c 'import json; print(len(json.load(open("apps/customrom-adb-native/app/src/main/assets/recipes.json"))))'),
             "source_branch": "${GITHUB_REF_NAME}",
             "source_commit": "$(git rev-parse HEAD)",
@@ -163,9 +177,9 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git pull --rebase origin ${GITHUB_REF_NAME}
-          git add ci/contextual-control-v5-proof.json
+          git add ci/practical-ops-v6-proof.json
           if ! git diff --cached --quiet; then
-            git commit -m "ci: record contextual control v5 ${STATUS}"
+            git commit -m "ci: record practical operations v6 ${STATUS}"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
