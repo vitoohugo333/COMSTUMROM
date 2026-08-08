@@ -7,6 +7,16 @@ on:
         description: 'Caminho opcional do APK ou ZIP de referência dentro do repositório'
         required: false
         default: ''
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-customrom-adb-mod.yml'
+      - 'tools/bugjaeger_mod/**'
+      - 'apps/customrom-adb/**'
+      - '**/*Bugjaeger*.apk'
+      - '**/*Bugjaeger*.zip'
+      - '**/*bugjaeger*.apk'
+      - '**/*bugjaeger*.zip'
 
 permissions:
   contents: read
@@ -47,7 +57,7 @@ jobs:
       - name: Decode, apply CUSTOMROM patches and rebuild
         shell: bash
         env:
-          SOURCE_HINT: ${{ inputs.source_hint }}
+          SOURCE_HINT: ${{ inputs.source_hint || '' }}
           APKTOOL_JAR: ${{ github.workspace }}/.tools/apktool.jar
         run: |
           chmod +x tools/bugjaeger_mod/build_mod.sh
@@ -77,7 +87,7 @@ jobs:
           apksigner verify --verbose --print-certs out/CUSTOMROM-ADB-signed.apk | tee out/signature-verification.txt
           sha256sum out/CUSTOMROM-ADB-signed.apk | tee out/signed-sha256.txt
 
-      - name: Upload private build artifact
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: CUSTOMROM-ADB-build
