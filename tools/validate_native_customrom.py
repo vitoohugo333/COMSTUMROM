@@ -82,6 +82,8 @@ def main() -> int:
         fail("compileSdk precisa permanecer 36 enquanto o backend validado for Kadb 2.1.1")
     if 'implementation("com.flyfishxu:kadb:2.1.1")' not in build:
         fail("backend ADB validado precisa permanecer com.flyfishxu:kadb:2.1.1")
+    if 'implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")' not in build:
+        fail("Coroutines 1.10.2 precisa ser dependência direta porque MainActivity usa runBlocking")
     if not re.search(r"\btargetSdk\s*=\s*35\b", build):
         fail("targetSdk 35 é decisão de compatibilidade de runtime e não deve subir por efeito colateral")
 
@@ -119,6 +121,7 @@ def main() -> int:
     print("mdns_reconnect=present")
     print("evidence_export=present")
     print("adb_backend=com.flyfishxu:kadb:2.1.1")
+    print("coroutines=1.10.2")
     print("compileSdk=36")
     print("targetSdk=35")
     return 0
