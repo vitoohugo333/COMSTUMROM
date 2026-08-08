@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'apps/customrom-adb-native/**'
+      - 'tools/validate_native_customrom.py'
       - '.github/workflows/build-customrom-adb-native.yml'
 
 permissions:
@@ -25,6 +26,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Validate native CUSTOMROM contract
+        shell: bash
+        run: |
+          python3 tools/validate_native_customrom.py
 
       - name: Android SDK
         uses: android-actions/setup-android@v3
@@ -54,7 +60,7 @@ jobs:
           cat > out/native/build-info.txt <<EOF
           build=CUSTOMROM ADB native
           backend=com.flyfishxu:kadb:2.1.3
-          minSdk=26
+          minSdk=29
           targetSdk=35
           commit=${GITHUB_SHA}
           EOF
