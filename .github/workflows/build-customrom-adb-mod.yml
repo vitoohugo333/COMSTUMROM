@@ -12,6 +12,8 @@ on:
     paths:
       - '.github/workflows/build-customrom-adb-mod.yml'
       - 'tools/bugjaeger_mod/**'
+      - 'tools/evidence_pack/**'
+      - 'tools/validate_customrom_assets.py'
       - 'apps/customrom-adb/**'
       - '**/*Bugjaeger*.apk'
       - '**/*Bugjaeger*.zip'
@@ -36,10 +38,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Test CUSTOMROM patcher
+      - name: Verify CUSTOMROM-owned logic
         shell: bash
         run: |
           python3 tools/bugjaeger_mod/test_patch_defaults.py
+          python3 tools/validate_customrom_assets.py
+          python3 tools/evidence_pack/test_build_evidence_pack.py
 
       - name: Android SDK
         uses: android-actions/setup-android@v3
