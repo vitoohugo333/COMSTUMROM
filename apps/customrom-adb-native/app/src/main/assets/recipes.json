@@ -306,5 +306,131 @@
     "risk": "AMARELO",
     "command": "input keyevent KEYCODE_BACK; echo 'Comando Voltar enviado'",
     "output": "44_voltar_remoto.txt"
+  },
+  {
+    "id": "foreground-services",
+    "name": "Serviços persistentes e foreground",
+    "risk": "VERDE",
+    "command": "echo '=== FOREGROUND / SERVICES ==='; dumpsys activity services 2>/dev/null | grep -E -i -B2 -A8 'foreground|startRequested=true|isForeground=true|packageName=' | head -n 700",
+    "output": "45_foreground_services.txt"
+  },
+  {
+    "id": "appops-auditoria",
+    "name": "Permissões especiais e AppOps",
+    "risk": "VERDE",
+    "command": "echo '=== APPOPS ==='; dumpsys appops 2>/dev/null | head -n 900",
+    "output": "46_appops.txt"
+  },
+  {
+    "id": "batterystats-apps",
+    "name": "Consumo por apps desde a carga",
+    "risk": "VERDE",
+    "command": "echo '=== BATTERYSTATS ==='; dumpsys batterystats --charged 2>/dev/null | head -n 1000",
+    "output": "47_batterystats_apps.txt"
+  },
+  {
+    "id": "uso-apps",
+    "name": "Aplicativos usados recentemente",
+    "risk": "VERDE",
+    "command": "echo '=== USAGESTATS ==='; dumpsys usagestats 2>/dev/null | head -n 900",
+    "output": "48_usage_apps.txt"
+  },
+  {
+    "id": "deviceidle-whitelist",
+    "name": "Exceções de economia de energia",
+    "risk": "VERDE",
+    "command": "echo '=== DEVICEIDLE WHITELIST ==='; cmd deviceidle whitelist 2>/dev/null; echo; dumpsys deviceidle 2>/dev/null | grep -E -i -A120 'Whitelist|mPowerSaveWhitelistApps|mExceptIdleWhitelistApps' | head -n 360",
+    "output": "49_deviceidle_whitelist.txt"
+  },
+  {
+    "id": "launchers-disponiveis",
+    "name": "Launchers disponíveis na central",
+    "risk": "VERDE",
+    "command": "echo '=== HOME CANDIDATES ==='; cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null; echo; echo '=== HOME RESOLVIDO ==='; cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null",
+    "output": "50_launchers.txt"
+  },
+  {
+    "id": "webview-provider",
+    "name": "WebView e provider atual",
+    "risk": "VERDE",
+    "command": "echo '=== WEBVIEW ==='; dumpsys webviewupdate 2>/dev/null | head -n 420",
+    "output": "51_webview.txt"
+  },
+  {
+    "id": "localizacao-gnss",
+    "name": "Localização e GNSS",
+    "risk": "VERDE",
+    "command": "echo '=== LOCATION ==='; dumpsys location 2>/dev/null | head -n 800",
+    "output": "52_localizacao_gnss.txt"
+  },
+  {
+    "id": "sensores-status",
+    "name": "Sensores e clientes ativos",
+    "risk": "VERDE",
+    "command": "echo '=== SENSOR SERVICE ==='; dumpsys sensorservice 2>/dev/null | head -n 800",
+    "output": "53_sensores.txt"
+  },
+  {
+    "id": "camera-status",
+    "name": "Câmeras e clientes ativos",
+    "risk": "VERDE",
+    "command": "echo '=== CAMERA SERVICE ==='; dumpsys media.camera 2>/dev/null | head -n 650",
+    "output": "54_camera.txt"
+  },
+  {
+    "id": "processos-oom",
+    "name": "Prioridade e pressão dos processos",
+    "risk": "VERDE",
+    "command": "echo '=== ACTIVITY PROCESSES ==='; dumpsys activity processes 2>/dev/null | head -n 1000",
+    "output": "55_processos_oom.txt"
+  },
+  {
+    "id": "rede-netstats",
+    "name": "Tráfego e estatísticas de rede",
+    "risk": "VERDE",
+    "command": "echo '=== NETSTATS ==='; dumpsys netstats 2>/dev/null | head -n 900",
+    "output": "56_netstats.txt"
+  },
+  {
+    "id": "device-policy",
+    "name": "Políticas e administradores do dispositivo",
+    "risk": "VERDE",
+    "command": "echo '=== DEVICE POLICY ==='; dumpsys device_policy 2>/dev/null | head -n 700",
+    "output": "57_device_policy.txt"
+  },
+  {
+    "id": "notificacoes-status",
+    "name": "Notificações, listeners e canais",
+    "risk": "VERDE",
+    "command": "echo '=== NOTIFICATION ==='; dumpsys notification 2>/dev/null | head -n 900",
+    "output": "58_notificacoes.txt"
+  },
+  {
+    "id": "pacotes-instaladores",
+    "name": "Origem de instalação dos aplicativos",
+    "risk": "VERDE",
+    "command": "echo '=== PACKAGES + INSTALLER ==='; pm list packages -f -i -u 2>/dev/null",
+    "output": "59_pacotes_instaladores.txt"
+  },
+  {
+    "id": "background-limits",
+    "name": "Limites de processos em segundo plano",
+    "risk": "VERDE",
+    "command": "echo 'background_process_limit='$(settings get global background_process_limit); echo 'cached_apps_freezer='$(settings get global cached_apps_freezer); echo 'activity_manager_constants='$(settings get global activity_manager_constants)",
+    "output": "60_background_limits.txt"
+  },
+  {
+    "id": "ethernet-status",
+    "name": "Ethernet e rede cabeada",
+    "risk": "VERDE",
+    "command": "echo '=== ETHERNET ==='; dumpsys ethernet 2>/dev/null | head -n 500; echo; ip link 2>/dev/null",
+    "output": "61_ethernet.txt"
+  },
+  {
+    "id": "tempo-sistema",
+    "name": "Horário, timezone e sincronização",
+    "risk": "VERDE",
+    "command": "echo '=== DATE ==='; date; echo 'timezone='$(getprop persist.sys.timezone); echo 'auto_time='$(settings get global auto_time); echo 'auto_time_zone='$(settings get global auto_time_zone)",
+    "output": "62_tempo_sistema.txt"
   }
 ]

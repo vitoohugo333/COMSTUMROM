@@ -28,6 +28,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Space
@@ -399,7 +400,7 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun buildAppFilters(): View {
-        val scroll = ScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf("Todos", "Rodando", "Usuário", "Sistema", "Desativados", "Protegidos", "Candidatos", "Alterados").forEach { label ->
             row.addView(filterChip(label) { appFilter = label; refreshAppList() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(38)).apply { rightMargin = dp(7) })
@@ -521,21 +522,33 @@ class PremiumOpsActivity : Activity() {
         panel.addView(text("Confiança ${assessment.confidence.label}", 11f, textSecondary, true), margins(top = 8))
         panel.addView(text(assessment.reasons.joinToString("\n") { "• $it" }, 12f, textSecondary, false), margins(top = 10))
         if (snapshot.apkPath.isNotBlank()) panel.addView(text(snapshot.apkPath, 10f, textMuted, false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) }, margins(top = 10))
+        val stateText = buildString {
+            append(if (snapshot.disabled) "Desativado" else "Ativo")
+            append(" · ").append(if (snapshot.running) "rodando" else "sem processo detectado")
+            append(" · ").append(snapshot.kind)
+        }
+        panel.addView(text(stateText, 11f, if (snapshot.disabled) warning else success, true), margins(top = 10))
 
         lateinit var dialog: AlertDialog
         panel.addView(primaryButton("Analisar com mais evidência") { dialog.dismiss(); inspectPackage(snapshot.packageName) }, margins(top = 16))
-        val mutableAllowed = assessment.criticality == PackageCriticality.LOW || assessment.criticality == PackageCriticality.MEDIUM
+        val mutableAllowed = assessment.criticality != PackageCriticality.PROTECTED
+        if (assessment.criticality == PackageCriticality.HIGH || assessment.criticality == PackageCriticality.UNKNOWN) {
+            panel.addView(callout("Controle avançado", "Criticidade ${assessment.criticality.label}: esta função pode ser importante, mas a decisão é sua. O comando atua somente no usuário 0, é mostrado antes da execução e o estado é verificado depois."), margins(top = 12))
+        }
         if (mutableAllowed) {
             panel.addView(softButton("Parar temporariamente") { dialog.dismiss(); forceStopPackage(snapshot) }, margins(top = 8))
-            if (snapshot.disabled && ledger.wasDisabledByCustomrom(snapshot.packageName)) {
-                panel.addView(softButton("Restaurar aplicativo") { dialog.dismiss(); restorePackage(snapshot) }, margins(top = 8))
-            } else if (!snapshot.disabled) {
-                panel.addView(dangerButton("Desativar reversivelmente") { dialog.dismiss(); disablePackage(snapshot) }, margins(top = 8))
+            if (snapshot.disabled) {
+                val enableLabel = if (ledger.wasDisabledByCustomrom(snapshot.packageName)) "Restaurar alteração do CUSTOMROM" else "Ativar para usuário 0"
+                panel.addView(softButton(enableLabel) { dialog.dismiss(); enablePackage(snapshot) }, margins(top = 8))
             } else {
-                panel.addView(text("Este package já está desativado, mas o CUSTOMROM não possui evidência de ter feito essa alteração. Por segurança, não afirma rollback automático.", 11f, warning, false), margins(top = 10))
+                val disableLabel = if (snapshot.kind == "Sistema") "Desativar para usuário 0 (avançado)" else "Desativar reversivelmente"
+                panel.addView(dangerButton(disableLabel) { dialog.dismiss(); disablePackage(snapshot) }, margins(top = 8))
             }
+            panel.addView(softButton("Logs recentes deste app") { dialog.dismiss(); showPackageLog(snapshot.packageName) }, margins(top = 8))
+            panel.addView(softButton("Abrir app na TayTech") { dialog.dismiss(); launchPackage(snapshot.packageName) }, margins(top = 8))
         } else {
-            panel.addView(callout("Proteção ativa", "O fluxo comum não oferece Parar/Desativar para criticidade ${assessment.criticality.label}. Analise primeiro e preserve funções do sistema/veículo."), margins(top = 12))
+            panel.addView(callout("Núcleo protegido", "Este package pertence ao núcleo Android/ADB/hardware essencial conhecido. Aqui o CUSTOMROM evita desativação porque perder o próprio caminho de recuperação é diferente de interromper uma função automotiva reversível."), margins(top = 12))
+            panel.addView(softButton("Logs recentes deste app") { dialog.dismiss(); showPackageLog(snapshot.packageName) }, margins(top = 8))
         }
         panel.addView(softButton("Fechar") { dialog.dismiss() }, margins(top = 10))
         dialog = premiumDialog(panel)
@@ -546,36 +559,62 @@ class PremiumOpsActivity : Activity() {
     private fun inspectPackage(packageNameRaw: String) {
         val pkg = sanitizePackage(packageNameRaw) ?: return
         val command = "echo '=== PACKAGE ==='; dumpsys package $pkg 2>/dev/null | head -n 500; echo; echo '=== PID ==='; pidof $pkg 2>/dev/null; echo; echo '=== MEMINFO ==='; dumpsys meminfo $pkg 2>/dev/null | head -n 180; echo; echo '=== SERVICES MATCH ==='; dumpsys activity services 2>/dev/null | grep -i -B2 -A5 '$pkg' | head -n 160"
-        executeOperation("Analisar ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = true) { outcome, result ->
+        executeOperation("Analisar ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = false) { outcome, result ->
             if (result.success) {
                 val index = appPackages.indexOfFirst { it.packageName == pkg }
-                if (index >= 0) {
-                    val old = appPackages[index]
-                    appPackages[index] = old.copy(metadata = outcome.stdout, running = outcome.stdout.contains("PID", true) && Regex("\\b[0-9]{2,}\\b").containsMatchIn(outcome.stdout))
-                    refreshAppList()
-                }
-            }
+                val base = if (index >= 0) appPackages[index] else PackageSnapshot(pkg)
+                val updated = base.copy(metadata = outcome.stdout, running = outcome.stdout.contains("PID", true) && Regex("\b[0-9]{2,}\b").containsMatchIn(outcome.stdout))
+                if (index >= 0) appPackages[index] = updated else appPackages.add(updated)
+                refreshAppList()
+                showAppDetail(updated)
+            } else showTechnicalResult(result, combineRaw(outcome))
         }
     }
 
     private fun forceStopPackage(snapshot: PackageSnapshot) {
         val pkg = sanitizePackage(snapshot.packageName) ?: return
-        executeOperation("Parar ${PackageIntelligence.friendlyName(pkg)}", "am force-stop --user 0 $pkg; echo 'Aplicativo interrompido temporariamente'", "AMARELO", showDialog = true) { outcome, result ->
+        executeOperation("Parar ${PackageIntelligence.friendlyName(pkg)}", "am force-stop --user 0 $pkg; echo 'Aplicativo interrompido temporariamente'", "AMARELO", showDialog = false) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "force-stop", if (snapshot.running) "running" else "unknown", "stopped", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, ""))
                 updatePackage(pkg) { it.copy(running = false) }
-            }
+                appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
+            } else showTechnicalResult(result, combineRaw(outcome))
         }
     }
 
     private fun disablePackage(snapshot: PackageSnapshot) {
         val pkg = sanitizePackage(snapshot.packageName) ?: return
-        executeOperation("Desativar ${PackageIntelligence.friendlyName(pkg)}", "pm disable-user --user 0 $pkg", "AMARELO", showDialog = true) { outcome, result ->
+        val command = "pm disable-user --user 0 $pkg >/dev/null 2>&1; RC=${'$'}?; if pm list packages -d 2>/dev/null | grep -Fxq 'package:$pkg'; then echo 'Package desativado para usuário 0'; exit 0; else echo 'Falha: package não aparece como desativado'; exit ${'$'}RC; fi"
+        executeOperation("Desativar ${PackageIntelligence.friendlyName(pkg)}", command, "AMARELO", showDialog = false) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "disable", if (snapshot.disabled) "disabled" else "enabled", "disabled", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, "pm enable --user 0 $pkg"))
                 updatePackage(pkg) { it.copy(disabled = true, running = false) }
-            }
+                appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
+            } else showTechnicalResult(result, combineRaw(outcome))
         }
+    }
+
+    private fun enablePackage(snapshot: PackageSnapshot) {
+        val pkg = sanitizePackage(snapshot.packageName) ?: return
+        val command = "pm enable --user 0 $pkg >/dev/null 2>&1; RC=${'$'}?; if pm list packages -d 2>/dev/null | grep -Fxq 'package:$pkg'; then echo 'Falha: package continua desativado'; exit 2; else echo 'Package ativo para usuário 0'; exit ${'$'}RC; fi"
+        executeOperation("Ativar ${PackageIntelligence.friendlyName(pkg)}", command, "AMARELO", showDialog = false) { outcome, result ->
+            if (result.success) {
+                ledger.append(ChangeRecord(pkg, "enable", "disabled", "enabled", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, "pm disable-user --user 0 $pkg"))
+                updatePackage(pkg) { it.copy(disabled = false) }
+                appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
+            } else showTechnicalResult(result, combineRaw(outcome))
+        }
+    }
+
+    private fun showPackageLog(packageNameRaw: String) {
+        val pkg = sanitizePackage(packageNameRaw) ?: return
+        val command = "PID=${'$'}(pidof $pkg 2>/dev/null | awk '{print ${'$'}1}'); if [ -n \"${'$'}PID\" ]; then logcat -d -v threadtime --pid=${'$'}PID -t 500 2>/dev/null || logcat -d -v threadtime -t 1200 2>/dev/null | grep -F '$pkg' | tail -n 500; else echo 'Package não está rodando; buscando referências recentes'; logcat -d -v threadtime -t 1600 2>/dev/null | grep -F '$pkg' | tail -n 500; fi"
+        executeOperation("Logs de ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = true) { _, _ -> }
+    }
+
+    private fun launchPackage(packageNameRaw: String) {
+        val pkg = sanitizePackage(packageNameRaw) ?: return
+        executeOperation("Abrir ${PackageIntelligence.friendlyName(pkg)} na TayTech", "monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>/dev/null", "AMARELO", showDialog = true) { _, _ -> }
     }
 
     private fun restorePackage(snapshot: PackageSnapshot) {
@@ -619,6 +658,10 @@ class PremiumOpsActivity : Activity() {
         root.addView(featureAction("!", "Quais apps estão falhando?", "Crashes e ANRs viram atalhos para os packages relacionados.") { runRecipeById("falhas-crashes") }, margins(top = 8))
         root.addView(featureAction("◌", "Quem acorda a central?", "Wakelocks e alarmes são ligados aos possíveis aplicativos responsáveis.") { runRecipeById("wakelocks-alarmes") }, margins(top = 8))
         root.addView(featureAction("⇄", "O que trabalha em segundo plano?", "Jobs agendados viram owners investigáveis em vez de dump bruto.") { runRecipeById("jobs-agendados") }, margins(top = 8))
+        root.addView(featureAction("●", "Quais serviços ficam sempre ativos?", "Foreground/persistent services viram packages acionáveis.") { runRecipeById("foreground-services") }, margins(top = 8))
+        root.addView(featureAction("⌁", "Quais apps realmente foram usados?", "UsageStats ajuda a separar uso real de software apenas residente.") { runRecipeById("uso-apps") }, margins(top = 8))
+        root.addView(featureAction("⚡", "Quem consumiu energia?", "Batterystats cruza atividade por UID/package desde a referência disponível.") { runRecipeById("batterystats-apps") }, margins(top = 8))
+        root.addView(featureAction("⌂", "Quais launchers existem?", "Lista candidatos HOME e permite investigar cada launcher sem sair do fluxo.") { runRecipeById("launchers-disponiveis") }, margins(top = 8))
 
         root.addView(sectionTitle("Último resultado", "Resumo humano primeiro · evidência técnica sob demanda"), margins(top = 22))
         val summary = card().apply { setPadding(dp(14), dp(14), dp(14), dp(14)) }
@@ -797,10 +840,14 @@ class PremiumOpsActivity : Activity() {
         lateinit var dialog: AlertDialog
         if (report.actions.isNotEmpty()) {
             panel.addView(text("O que você pode fazer agora", 11f, textPrimary, true), margins(top = 18))
-            report.actions.take(8).forEach { action ->
+            report.actions.take(64).forEach { action ->
                 val row = functionalActionRow(action) {
-                    dialog.dismiss()
-                    performFunctionalAction(action)
+                    if (action.destination == ActionDestination.PACKAGE) {
+                        performFunctionalAction(action)
+                    } else {
+                        dialog.dismiss()
+                        performFunctionalAction(action)
+                    }
                 }
                 panel.addView(row, margins(top = 8))
             }
@@ -832,7 +879,7 @@ class PremiumOpsActivity : Activity() {
 
     private fun performFunctionalAction(action: FunctionalAction) {
         when (action.destination) {
-            ActionDestination.PACKAGE -> openPackageFromAction(action.target)
+            ActionDestination.PACKAGE -> openPackageContext(action.target)
             ActionDestination.APPS_FILTER -> openAppsFilter(action.target)
             ActionDestination.RECIPE -> runRecipeById(action.target)
             ActionDestination.SCREEN -> {
@@ -845,6 +892,31 @@ class PremiumOpsActivity : Activity() {
                 showSection("terminal")
                 terminalInput.setText(action.target)
             }
+        }
+    }
+
+    private fun openPackageContext(packageNameRaw: String) {
+        val pkg = sanitizePackage(packageNameRaw) ?: return
+        appPackages.firstOrNull { it.packageName == pkg }?.let {
+            showAppDetail(it)
+            return
+        }
+        val command = "echo '__PATH__'; pm path $pkg 2>/dev/null; echo '__DISABLED__'; pm list packages -d 2>/dev/null | grep -Fx 'package:$pkg' || true; echo '__PID__'; pidof $pkg 2>/dev/null || true; echo '__DETAIL__'; dumpsys package $pkg 2>/dev/null | head -n 420"
+        executeOperation("Preparar ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = false) { outcome, result ->
+            if (!result.success) {
+                showTechnicalResult(result, combineRaw(outcome))
+                return@executeOperation
+            }
+            val lines = outcome.stdout.lineSequence().map { it.trim() }.toList()
+            val path = lines.firstOrNull { it.startsWith("package:") }?.removePrefix("package:").orEmpty()
+            val disabled = lines.any { it == "package:$pkg" }
+            val pidIndex = lines.indexOf("__PID__")
+            val running = pidIndex >= 0 && lines.drop(pidIndex + 1).takeWhile { !it.startsWith("__") }.any { line -> line.any(Char::isDigit) }
+            val kind = if (path.contains("/data/app/")) "Usuário" else "Sistema"
+            val snapshot = PackageSnapshot(pkg, path, kind, disabled, running, metadata = outcome.stdout)
+            appPackages.removeAll { it.packageName == pkg }
+            appPackages.add(snapshot)
+            showAppDetail(snapshot)
         }
     }
 
@@ -1087,6 +1159,24 @@ class PremiumOpsActivity : Activity() {
         "stayon-off" -> "Restaura a política normal de suspensão durante alimentação."
         "ui-hierarchy" -> "Prática destilada de tooling ADB: captura a árvore UI atual para entender elementos e estados."
         "diagnostico-lentidao" -> "Workflow composto: memória + CPU + top + disco + thermal."
+        "foreground-services" -> "Serviços persistentes/foreground para descobrir quem permanece ativo."
+        "appops-auditoria" -> "AppOps e permissões especiais observadas pelo Android."
+        "batterystats-apps" -> "Histórico de consumo e atividade por UID/package desde a última carga."
+        "uso-apps" -> "UsageStats e atividade recente para entender o que realmente está sendo usado."
+        "deviceidle-whitelist" -> "Apps liberados das restrições de Doze/device idle."
+        "launchers-disponiveis" -> "Launchers HOME disponíveis e resolução do launcher atual."
+        "webview-provider" -> "Provider WebView atual, versões válidas e estado de atualização."
+        "localizacao-gnss" -> "Providers de localização/GNSS e estado observacional."
+        "sensores-status" -> "Sensores registrados, clientes e eventos expostos pelo SensorService."
+        "camera-status" -> "Câmeras, clientes e estado do serviço media.camera."
+        "processos-oom" -> "Processos, importância/adj e estado do ActivityManager."
+        "rede-netstats" -> "Estatísticas de rede por UID e interfaces para investigar tráfego."
+        "device-policy" -> "Administradores, políticas e restrições gerenciadas do Android."
+        "notificacoes-status" -> "Serviço de notificações, listeners e packages relacionados."
+        "pacotes-instaladores" -> "Packages com caminho e origem/installer quando o Android expõe."
+        "background-limits" -> "Limites globais de processos/cache e freezer de apps."
+        "ethernet-status" -> "Estado da pilha Ethernet e interfaces cabeadas."
+        "tempo-sistema" -> "Data, timezone e políticas automáticas de horário."
         else -> "Rotina versionada do CUSTOMROM."
     }
 
@@ -1287,7 +1377,20 @@ class PremiumOpsActivity : Activity() {
         return root
     }
 
-    private fun premiumDialog(panel: View): AlertDialog = AlertDialog.Builder(this).setView(panel).create()
+    private fun premiumDialog(panel: View): AlertDialog {
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        }
+        scroll.addView(panel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return AlertDialog.Builder(this).setView(scroll).create().apply {
+            setOnShowListener {
+                val metrics = resources.displayMetrics
+                window?.setLayout((metrics.widthPixels * 0.94f).toInt(), (metrics.heightPixels * 0.90f).toInt())
+            }
+        }
+    }
     private fun divider(): View = View(this).apply { setBackgroundColor(line) }
     private fun space(height: Int): View = Space(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(height)) }
     private fun margins(top: Int = 0, bottom: Int = 0, height: Int? = null): LinearLayout.LayoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height?.let(::dp) ?: ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(top); bottomMargin = dp(bottom) }

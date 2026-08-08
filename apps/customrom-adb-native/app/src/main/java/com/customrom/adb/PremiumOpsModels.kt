@@ -193,13 +193,15 @@ object PackageIntelligence {
             if (metaLower.contains("persistent") || metaLower.contains("boot_completed")) {
                 reasons += "há indício de serviço persistente ou inicialização no boot"
             }
-            return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
+            reasons += "função veicular potencialmente importante; a decisão manual continua disponível no usuário 0"
+            return PackageAssessment(PackageCriticality.HIGH, AssessmentConfidence.HIGH, reasons, false)
         }
 
         val vendor = pathLower.contains("/vendor/") || pathLower.contains("/odm/")
         if (vendor) {
             reasons += "APK pertence à partição vendor/odm e pode integrar hardware da central"
-            return PackageAssessment(PackageCriticality.PROTECTED, AssessmentConfidence.HIGH, reasons, false)
+            reasons += "controle avançado disponível; desativar pode interromper hardware ou função veicular"
+            return PackageAssessment(PackageCriticality.HIGH, AssessmentConfidence.HIGH, reasons, false)
         }
 
         val coreHits = coreTokens.filter { packageLower.contains(it) || metaLower.contains(it) }

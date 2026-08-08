@@ -80,7 +80,12 @@ REQUIRED_ACTIONABLE_UI_SIGNALS = [
     "showActionableResult",
     "renderDiagnosticActions",
     "performFunctionalAction",
-    "openPackageFromAction",
+    "openPackageContext",
+    "HorizontalScrollView",
+    "isVerticalScrollBarEnabled = true",
+    "Desativar para usuário 0 (avançado)",
+    "Ativar para usuário 0",
+    "Logs recentes deste app",
     "O que você pode fazer agora",
     "O que inicia junto com a central?",
     "Quais apps estão falhando?",
@@ -213,8 +218,8 @@ def main() -> int:
         fail("targetSdk 35 é decisão de compatibilidade de runtime e não deve subir por efeito colateral")
 
     recipes = json.loads(RECIPES.read_text(encoding="utf-8"))
-    if not isinstance(recipes, list) or len(recipes) < 40:
-        fail("catálogo premium expandido precisa manter pelo menos 40 rotinas úteis")
+    if not isinstance(recipes, list) or len(recipes) < 60:
+        fail("catálogo premium expandido precisa manter pelo menos 60 rotinas úteis")
 
     ids: set[str] = set()
     for recipe in recipes:
@@ -260,6 +265,24 @@ def main() -> int:
         "seguranca-boot",
         "abrir-configuracoes",
         "home-remoto",
+        "foreground-services",
+        "appops-auditoria",
+        "batterystats-apps",
+        "uso-apps",
+        "deviceidle-whitelist",
+        "launchers-disponiveis",
+        "webview-provider",
+        "localizacao-gnss",
+        "sensores-status",
+        "camera-status",
+        "processos-oom",
+        "rede-netstats",
+        "device-policy",
+        "notificacoes-status",
+        "pacotes-instaladores",
+        "background-limits",
+        "ethernet-status",
+        "tempo-sistema",
     }
     missing = required_recipes - ids
     if missing:
@@ -280,6 +303,10 @@ def main() -> int:
     print("functional_action_graph=present")
     print("raw_evidence=secondary")
     print("actionable_boot_crash_wake_jobs=present")
+    print("scrollable_actionable_dialog=present")
+    print("contextual_package_control=present")
+    print("advanced_system_disable_user0=present")
+    print("recipe_catalog_minimum=60")
     print("command_timeout=45s")
     print("package_intelligence=present")
     print("change_ledger=present")
