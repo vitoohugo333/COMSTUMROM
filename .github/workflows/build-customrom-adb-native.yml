@@ -41,12 +41,12 @@ jobs:
           cmdline-tools-version: 15859902
           packages: platform-tools
 
-      - name: Install Android API 37
+      - name: Install stable Android API 36
         if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --channel=3 'platforms;android-37' 'build-tools;36.0.0'
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Setup Gradle
         if: steps.validate.outcome == 'success'
@@ -74,8 +74,8 @@ jobs:
           echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
           cat > out/native/build-info.txt <<EOF
           build=CUSTOMROM ADB native
-          backend=com.flyfishxu:kadb:2.1.3
-          compileSdk=37
+          backend=com.flyfishxu:kadb:2.1.1
+          compileSdk=36
           minSdk=29
           targetSdk=35
           agp=9.3.1
