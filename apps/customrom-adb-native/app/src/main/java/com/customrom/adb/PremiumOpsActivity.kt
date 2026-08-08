@@ -79,6 +79,7 @@ class PremiumOpsActivity : Activity() {
     private lateinit var appStatusView: TextView
     private lateinit var diagnosticSummaryView: TextView
     private lateinit var diagnosticRawView: TextView
+    private lateinit var diagnosticActionsHost: LinearLayout
     private lateinit var sessionSummaryView: TextView
     private lateinit var timelineHost: LinearLayout
     private lateinit var ledgerHost: LinearLayout
@@ -614,14 +615,35 @@ class PremiumOpsActivity : Activity() {
         root.addView(featureAction("▱", "A interface está engasgando?", "SurfaceFlinger, gfxinfo e estado de janela para investigar fluidez.") { runRecipeById("fluidez-gfx") }, margins(top = 8))
         root.addView(featureAction("♨", "Existe pressão térmica?", "ThermalService e zonas térmicas disponíveis no sistema.") { runRecipeById("thermal") }, margins(top = 8))
         root.addView(featureAction("◎", "ADB está instável?", "Rede, Wi‑Fi, propriedades ADB e portas do sistema.") { runRecipeById("rede-adb") }, margins(top = 8))
+        root.addView(featureAction("↻", "O que inicia junto com a central?", "Transforma receivers e serviços de boot em aplicativos navegáveis.") { runRecipeById("boot-servicos") }, margins(top = 8))
+        root.addView(featureAction("!", "Quais apps estão falhando?", "Crashes e ANRs viram atalhos para os packages relacionados.") { runRecipeById("falhas-crashes") }, margins(top = 8))
+        root.addView(featureAction("◌", "Quem acorda a central?", "Wakelocks e alarmes são ligados aos possíveis aplicativos responsáveis.") { runRecipeById("wakelocks-alarmes") }, margins(top = 8))
+        root.addView(featureAction("⇄", "O que trabalha em segundo plano?", "Jobs agendados viram owners investigáveis em vez de dump bruto.") { runRecipeById("jobs-agendados") }, margins(top = 8))
 
-        root.addView(sectionTitle("Último resultado", "Resumo primeiro · evidência bruta abaixo"), margins(top = 22))
+        root.addView(sectionTitle("Último resultado", "Resumo humano primeiro · evidência técnica sob demanda"), margins(top = 22))
         val summary = card().apply { setPadding(dp(14), dp(14), dp(14), dp(14)) }
         diagnosticSummaryView = text("Nenhum diagnóstico executado nesta abertura.", 13f, textPrimary, true)
         summary.addView(diagnosticSummaryView)
-        diagnosticRawView = text("", 10f, textMuted, false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true); maxLines = 20 }
+        diagnosticRawView = text("", 10f, textMuted, false).apply {
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            maxLines = 24
+            visibility = View.GONE
+        }
         summary.addView(diagnosticRawView, margins(top = 10))
+        lateinit var evidenceToggle: TextView
+        evidenceToggle = softButton("Ver evidência técnica") {
+            val show = diagnosticRawView.visibility != View.VISIBLE
+            diagnosticRawView.visibility = if (show) View.VISIBLE else View.GONE
+            evidenceToggle.text = if (show) "Ocultar evidência técnica" else "Ver evidência técnica"
+        }
+        summary.addView(evidenceToggle, margins(top = 10))
         root.addView(summary, margins(top = 8))
+
+        root.addView(sectionTitle("O que você pode fazer agora", "Cada resultado útil continua em uma próxima ação, sem executar mudanças sozinho"), margins(top = 22))
+        diagnosticActionsHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        diagnosticActionsHost.addView(emptyState("Execute um diagnóstico", "Os próximos passos aparecerão aqui conforme o que for encontrado."))
+        root.addView(diagnosticActionsHost, margins(top = 8))
 
         root.addView(sectionTitle("Ferramentas especializadas", "Receitas derivadas de práticas ADB e do aprendizado do projeto"), margins(top = 22))
         listOf("atividade-atual", "ui-hierarchy", "audio-radio", "bluetooth-status", "energia-power", "armazenamento", "boot-servicos", "logcat-curto").forEach { id ->
@@ -719,15 +741,129 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun runRecipe(recipe: PremiumRecipe) {
-        executeOperation(recipe.name, recipe.command, recipe.risk, showDialog = true) { outcome, result ->
+        executeOperation(recipe.name, recipe.command, recipe.risk, showDialog = false) { outcome, result ->
+            val raw = combineRaw(outcome)
             if (result.success) {
-                val raw = combineRaw(outcome)
                 session?.let { File(it.directory, recipe.output).writeText(raw, Charsets.UTF_8) }
+                val report = FunctionalActionEngine.analyze(recipe.id, raw)
+                if (::diagnosticSummaryView.isInitialized) {
+                    diagnosticSummaryView.text = report.summary
+                    diagnosticRawView.text = raw.take(18000)
+                    diagnosticRawView.visibility = View.GONE
+                    renderDiagnosticActions(report)
+                }
+                showActionableResult(recipe, report, result, raw)
+            } else {
+                if (::diagnosticSummaryView.isInitialized) {
+                    diagnosticSummaryView.text = "${result.title}: ${result.detail.take(260)}"
+                    diagnosticRawView.text = raw.take(18000)
+                    diagnosticRawView.visibility = View.GONE
+                    diagnosticActionsHost.removeAllViews()
+                    diagnosticActionsHost.addView(emptyState("A coleta não terminou", "Resolva a falha indicada antes de seguir para uma ação."))
+                }
+                showTechnicalResult(result, raw)
             }
-            if (::diagnosticSummaryView.isInitialized) {
-                diagnosticSummaryView.text = summarizeRecipe(recipe.id, outcome, result)
-                diagnosticRawView.text = combineRaw(outcome).take(14000)
+        }
+    }
+
+    private fun renderDiagnosticActions(report: ActionableReport) {
+        if (!::diagnosticActionsHost.isInitialized) return
+        diagnosticActionsHost.removeAllViews()
+        if (report.actions.isEmpty()) {
+            diagnosticActionsHost.addView(emptyState("Nenhuma ação automática sugerida", "A evidência continua disponível para investigação manual."))
+            return
+        }
+        report.actions.take(10).forEach { action ->
+            diagnosticActionsHost.addView(functionalActionRow(action), margins(bottom = 8))
+        }
+    }
+
+    private fun showActionableResult(recipe: PremiumRecipe, report: ActionableReport, result: HumanOperationResult, raw: String) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            background = rounded(surface, 24, line)
+        }
+        panel.addView(text(report.title, 21f, success, true))
+        panel.addView(text(report.summary, 12f, textSecondary, false), margins(top = 8))
+
+        if (report.findings.isNotEmpty()) {
+            panel.addView(text("O que foi encontrado", 11f, textPrimary, true), margins(top = 16))
+            report.findings.take(8).forEach { finding ->
+                panel.addView(text("• $finding", 11f, textSecondary, false), margins(top = 6))
             }
+        }
+
+        lateinit var dialog: AlertDialog
+        if (report.actions.isNotEmpty()) {
+            panel.addView(text("O que você pode fazer agora", 11f, textPrimary, true), margins(top = 18))
+            report.actions.take(8).forEach { action ->
+                val row = functionalActionRow(action) {
+                    dialog.dismiss()
+                    performFunctionalAction(action)
+                }
+                panel.addView(row, margins(top = 8))
+            }
+        }
+
+        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        footer.addView(softButton(report.evidenceLabel) {
+            dialog.dismiss()
+            showTechnicalResult(result, raw)
+        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { rightMargin = dp(8) })
+        footer.addView(primaryButton("Concluir") { dialog.dismiss() }, LinearLayout.LayoutParams(0, dp(46), 1f))
+        panel.addView(footer, margins(top = 16))
+        dialog = premiumDialog(panel)
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+    }
+
+    private fun functionalActionRow(action: FunctionalAction, overrideAction: (() -> Unit)? = null): View = card(Color.rgb(9, 17, 29)).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        val body = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(text(action.label, 13f, textPrimary, true))
+        body.addView(text(action.detail, 10f, textSecondary, false).apply { setPadding(0, dp(4), 0, 0); maxLines = 3 })
+        addView(body, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(text("›", 22f, if (action.risk == "AMARELO") warning else cyan, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(34), dp(48)))
+        setOnClickListener { overrideAction?.invoke() ?: performFunctionalAction(action) }
+        pressFeedback(this)
+    }
+
+    private fun performFunctionalAction(action: FunctionalAction) {
+        when (action.destination) {
+            ActionDestination.PACKAGE -> openPackageFromAction(action.target)
+            ActionDestination.APPS_FILTER -> openAppsFilter(action.target)
+            ActionDestination.RECIPE -> runRecipeById(action.target)
+            ActionDestination.SCREEN -> {
+                if (screens.containsKey(action.target)) {
+                    showSection(action.target)
+                    if (action.target == "apps" && appPackages.isEmpty()) loadAppInventory()
+                } else toast("Destino indisponível: ${action.target}")
+            }
+            ActionDestination.TERMINAL -> {
+                showSection("terminal")
+                terminalInput.setText(action.target)
+            }
+        }
+    }
+
+    private fun openAppsFilter(filter: String) {
+        appFilter = filter
+        showSection("apps")
+        if (appPackages.isEmpty()) loadAppInventory() else refreshAppList()
+    }
+
+    private fun openPackageFromAction(packageNameRaw: String) {
+        val pkg = sanitizePackage(packageNameRaw) ?: return
+        appFilter = "Todos"
+        showSection("apps")
+        if (::appSearch.isInitialized) appSearch.setText(pkg)
+        if (appPackages.isEmpty()) {
+            loadAppInventory()
+        } else {
+            refreshAppList()
+            appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
         }
     }
 
