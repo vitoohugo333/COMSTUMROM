@@ -1,0 +1,104 @@
+name: Verify actionable journey APK
+
+on:
+  push:
+    branches:
+      - refactor/customrom-adb-s23-premium
+    paths:
+      - .github/workflows/actionable-v1-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/customrom-adb-s23-premium
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Validate actionable product contract
+        run: python3 tools/validate_native_customrom.py
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Setup Gradle 9.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+          cache-read-only: true
+
+      - name: Build actionable debug APK
+        run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
+
+      - name: Collect artifact and proof
+        id: collect
+        shell: bash
+        run: |
+          mkdir -p out/actionable-v1
+          cp apps/customrom-adb-native/app/build/outputs/apk/debug/app-debug.apk out/actionable-v1/CUSTOMROM-ADB-S23-ACTIONABLE-debug.apk
+          APK_SHA=$(sha256sum out/actionable-v1/CUSTOMROM-ADB-S23-ACTIONABLE-debug.apk | awk '{print $1}')
+          echo "$APK_SHA  CUSTOMROM-ADB-S23-ACTIONABLE-debug.apk" | tee out/actionable-v1/sha256.txt
+          echo "apk_sha=$APK_SHA" >> "$GITHUB_OUTPUT"
+          cat > out/actionable-v1/build-info.txt <<EOF
+          product=CUSTOMROM ADB S23 Actionable
+          contract=functional-action-graph-v1
+          source_branch=${GITHUB_REF_NAME}
+          source_commit=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
+          run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+
+      - name: Upload actionable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CUSTOMROM-ADB-S23-ACTIONABLE
+          path: out/actionable-v1/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Publish actionable proof
+        env:
+          APK_SHA: ${{ steps.collect.outputs.apk_sha }}
+        shell: bash
+        run: |
+          mkdir -p ci
+          cat > ci/actionable-v1-build-proof.json <<EOF
+          {
+            "status": "PASS",
+            "validation": "success",
+            "android_build": "success",
+            "contract": "functional-action-graph-v1",
+            "artifact": "CUSTOMROM-ADB-S23-ACTIONABLE",
+            "apk": "CUSTOMROM-ADB-S23-ACTIONABLE-debug.apk",
+            "apk_sha256": "${APK_SHA}",
+            "source_branch": "${GITHUB_REF_NAME}",
+            "source_commit": "${GITHUB_SHA}",
+            "run_id": ${GITHUB_RUN_ID},
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ci/actionable-v1-build-proof.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'ci: record actionable journey build PASS'
+            git push origin HEAD:refactor/customrom-adb-s23-premium
+          fi
