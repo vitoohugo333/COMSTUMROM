@@ -53,8 +53,8 @@ class GitHubIssueClient(
     private val config: GitHubControlConfig,
     private val tokenProvider: () -> String?,
     private val apiBase: String = "https://api.github.com"
-) {
-    fun listOpenJobs(): List<RemoteGitHubIssue> {
+) : RemoteIssueSource {
+    override fun listOpenJobs(): List<RemoteGitHubIssue> {
         val response = request(
             method = "GET",
             path = "/repos/${config.owner}/${config.repo}/issues?state=open&per_page=50"
