@@ -38,15 +38,15 @@ object RemoteReceiptFormatter {
 
         val transport = data.transportError.trim()
         val summary = when {
+            data.state == RemoteJobState.REJECTED ->
+                "A política local do CUSTOMROM bloqueou a operação."
+            data.state == RemoteJobState.UNCERTAIN ->
+                "A execução foi interrompida sem prova suficiente do estado final. O efeito não será repetido automaticamente."
             transport.isNotEmpty() -> "Falha de transporte: ${redact(transport)}"
             data.state == RemoteJobState.COMPLETED && data.exitCode == 0 ->
                 "A TayTech respondeu e a operação terminou."
             data.exitCode != 0 ->
                 "A TayTech respondeu, mas o comando não foi concluído."
-            data.state == RemoteJobState.REJECTED ->
-                "A política local do CUSTOMROM bloqueou a operação."
-            data.state == RemoteJobState.UNCERTAIN ->
-                "A execução foi interrompida sem prova suficiente do estado final. O efeito não será repetido automaticamente."
             else -> "Estado remoto atualizado."
         }
 
