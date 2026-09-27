@@ -79,6 +79,64 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun successfulTypedChangeRunsVerificationBeforeTerminalReceipt() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package disabled"),
+                    ok("state=disabled")
+                )
+            )
+        )
+        val publisher = FakePublisher()
+        val coordinator = coordinator(store, executor, publisher)
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0407",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(3, executor.commands.size)
+        assertTrue(executor.commands[2].contains("state=disabled").not())
+        assertTrue(executor.commands[2].contains("pm list packages -d"))
+        assertEquals(RemoteJobState.COMPLETED, store.get("cr-20260927-0407")?.state)
+        val receipt = store.get("cr-20260927-0407")?.receipt.orEmpty()
+        assertTrue(receipt.contains("Estado anterior: state=enabled"))
+        assertTrue(receipt.contains("Estado atual: state=disabled"))
+    }
+
+    @Test
+    fun verificationTransportFailureAfterEffectIsUncertain() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package disabled"),
+                    RemoteShellOutcome("", "", -1, 80, IllegalStateException("verify link lost"))
+                )
+            )
+        )
+        val coordinator = coordinator(store, executor, FakePublisher())
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0408",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(3, executor.commands.size)
+        assertEquals(RemoteJobState.UNCERTAIN, store.get("cr-20260927-0408")?.state)
+    }
+
+    @Test
     fun receiptFailureDoesNotReplayAdbAndNextPollRetriesOnlyReceipt() {
         val store = store()
         val executor = FakeCommandPort()
