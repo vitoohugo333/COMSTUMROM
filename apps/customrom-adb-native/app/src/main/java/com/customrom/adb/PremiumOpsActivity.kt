@@ -1144,7 +1144,7 @@ class PremiumOpsActivity : Activity() {
             return
         }
 
-        val client = GitHubIssueClient(config) { remoteCredentials.loadToken() }
+        val client = GitHubIssueClient(config, tokenProvider = { remoteCredentials.loadToken() })
         val publisher = object : RemoteReceiptPublisher {
             override fun comment(issueNumber: Long, body: String) = client.comment(issueNumber, body)
             override fun close(issueNumber: Long) = client.close(issueNumber)
