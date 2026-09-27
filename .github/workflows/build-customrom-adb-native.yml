@@ -58,9 +58,15 @@ jobs:
         with:
           gradle-version: '9.5.0'
 
+      - name: Run JVM unit tests
+        id: unit_tests
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
+        run: gradle -p apps/customrom-adb-native :app:testDebugUnitTest --stacktrace
+
       - name: Build debug APK
         id: android_build
-        if: steps.validate.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.unit_tests.outcome == 'success'
         continue-on-error: true
         run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
@@ -111,13 +117,14 @@ jobs:
         if: always()
         env:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit_tests.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
           APK_SHA: ${{ steps.collect.outputs.apk_sha }}
           APK_NAME: ${{ steps.collect.outputs.apk_name }}
           ARTIFACT_NAME: ${{ steps.collect.outputs.artifact_name }}
         shell: bash
         run: |
-          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
+          if [ "$VALIDATE_OUTCOME" = "success" ] && [ "$UNIT_TEST_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
           if [ "$GITHUB_REF_NAME" = "main" ]; then
             PROOF_PATH=ci/native-build-proof.json
           else
@@ -128,6 +135,7 @@ jobs:
           {
             "status": "${STATUS}",
             "validation": "${VALIDATE_OUTCOME}",
+            "unit_tests": "${UNIT_TEST_OUTCOME}",
             "android_build": "${BUILD_OUTCOME}",
             "artifact": "${ARTIFACT_NAME}",
             "apk": "${APK_NAME}",
@@ -151,8 +159,10 @@ jobs:
         if: always()
         env:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit_tests.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
         shell: bash
         run: |
           test "$VALIDATE_OUTCOME" = "success"
+          test "$UNIT_TEST_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
