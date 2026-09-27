@@ -18,6 +18,8 @@ class IssueJobStore(private val file: File) {
             RemoteJobState.FAILED,
             RemoteJobState.REJECTED -> ReplayDecision.REUSE_TERMINAL
             RemoteJobState.UNCERTAIN -> ReplayDecision.UNCERTAIN
+            RemoteJobState.CLAIMED,
+            RemoteJobState.RECEIVED -> ReplayDecision.NEW
             else -> ReplayDecision.IN_PROGRESS
         }
     }
