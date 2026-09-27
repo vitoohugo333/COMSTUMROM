@@ -1,3 +1,4 @@
+// Contract tests for the GitHub-to-ADB bridge.
 package com.customrom.adb
 
 import org.junit.Assert.assertEquals
