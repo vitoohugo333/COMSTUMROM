@@ -44,6 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -51,7 +52,10 @@ import java.util.zip.ZipOutputStream
 class PremiumOpsActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("customrom_adb", Context.MODE_PRIVATE) }
     private val ledger by lazy { ChangeLedger(this) }
+    private val remoteCredentials by lazy { GitHubCredentialStore(this) }
     private lateinit var adb: AdbRemoteController
+    private var remoteReceiver: GitHubIssueReceiver? = null
+    private val remoteCoordinatorExecutor = Executors.newSingleThreadExecutor()
 
     private val recipes = mutableListOf<PremiumRecipe>()
     private var session: PremiumSession? = null
@@ -63,6 +67,7 @@ class PremiumOpsActivity : Activity() {
     private lateinit var contentHost: FrameLayout
     private lateinit var statusView: TextView
     private lateinit var statusDetailView: TextView
+    private lateinit var remoteStatusView: TextView
     private lateinit var operationBanner: LinearLayout
     private lateinit var operationTitle: TextView
     private lateinit var operationDetail: TextView
@@ -111,10 +116,14 @@ class PremiumOpsActivity : Activity() {
         adb = AdbRemoteController(this, ::renderConnectionState)
         setContentView(buildUi())
         adb.start()
+        startRemoteControl()
     }
 
     override fun onDestroy() {
         activeTask?.cancel(true)
+        remoteReceiver?.close()
+        remoteReceiver = null
+        remoteCoordinatorExecutor.shutdownNow()
         adb.close()
         super.onDestroy()
     }
@@ -172,6 +181,13 @@ class PremiumOpsActivity : Activity() {
             letterSpacing = 0.16f
             setPadding(0, dp(2), 0, 0)
         })
+        remoteStatusView = text("REMOTO OFF", 9f, textMuted, true).apply {
+            letterSpacing = 0.08f
+            setPadding(0, dp(5), 0, 0)
+            setOnClickListener { showRemoteControlDialog() }
+            pressFeedback(this)
+        }
+        brand.addView(remoteStatusView)
         root.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
         val statusColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.END }
@@ -1112,6 +1128,249 @@ class PremiumOpsActivity : Activity() {
         statusView.setTextColor(color)
         statusView.background = rounded(surface2, 999, color)
         statusDetailView.text = detail
+    }
+
+    private fun startRemoteControl() {
+        remoteReceiver?.close()
+        remoteReceiver = null
+
+        val config = remoteControlConfig()
+        if (!config.enabled) {
+            renderRemoteStatus("REMOTO OFF", "Controle remoto desativado", textMuted)
+            return
+        }
+        if (!remoteCredentials.hasToken()) {
+            renderRemoteStatus("REMOTO !", "Credencial GitHub necessária", warning)
+            return
+        }
+
+        val client = GitHubIssueClient(config) { remoteCredentials.loadToken() }
+        val publisher = object : RemoteReceiptPublisher {
+            override fun comment(issueNumber: Long, body: String) = client.comment(issueNumber, body)
+            override fun close(issueNumber: Long) = client.close(issueNumber)
+        }
+        val coordinator = RemoteJobCoordinator(
+            config = config,
+            registry = RemoteOperationRegistry(recipes),
+            store = IssueJobStore(File(filesDir, "customrom_remote_jobs.json")),
+            commandPort = remoteCommandPort(),
+            publisher = publisher,
+            onState = { state, title -> renderRemoteJobState(state, title) }
+        )
+        remoteReceiver = GitHubIssueReceiver(
+            source = client,
+            handler = coordinator,
+            pollSeconds = config.pollSeconds
+        ) { state ->
+            runOnUiThread { renderRemoteTransportState(state) }
+        }.also { it.start() }
+
+        renderRemoteStatus("REMOTO ●", "GitHub → S23 → ADB → TayTech", success)
+    }
+
+    private fun remoteControlConfig(): GitHubControlConfig {
+        val defaults = GitHubControlConfig.defaults()
+        return defaults.copy(
+            enabled = prefs.getBoolean("remote_control_enabled", false),
+            pollSeconds = prefs.getInt("remote_control_poll_seconds", defaults.pollSeconds)
+        )
+    }
+
+    private fun remoteCommandPort(): RemoteCommandPort = object : RemoteCommandPort {
+        override fun isAvailable(): Boolean = activeTask?.isDone != false
+
+        override fun execute(
+            command: String,
+            timeoutMs: Long,
+            callback: (RemoteShellOutcome) -> Unit
+        ): Boolean {
+            if (activeTask?.isDone == false) return false
+            val risk = PremiumSafetyPolicy.classify(command)
+            runOnUiThread {
+                if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = false
+            }
+            activeTask = adb.execute(command, timeoutMs) { outcome ->
+                activeTask = null
+                lastRawOutput = combineRaw(outcome)
+                appendExecution("Remoto", command, risk, outcome)
+                if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = true
+                remoteCoordinatorExecutor.execute { callback(outcome) }
+            }
+            return true
+        }
+    }
+
+    private fun renderRemoteJobState(state: RemoteJobState, title: String) {
+        runOnUiThread {
+            when (state) {
+                RemoteJobState.RECEIVED, RemoteJobState.CLAIMED -> {
+                    renderRemoteStatus("REMOTO ◌", "Pedido recebido", warning)
+                    renderOperation(
+                        HumanOperationResult(
+                            OperationPhase.QUEUED,
+                            "Pedido remoto recebido",
+                            title,
+                            "source=GitHub Issues",
+                            false
+                        )
+                    )
+                }
+                RemoteJobState.RUNNING -> {
+                    renderRemoteStatus("REMOTO ↻", "Executando na TayTech", warning)
+                    renderOperation(OperationPresenter.running("Remoto · $title"))
+                }
+                RemoteJobState.COMPLETED -> {
+                    renderRemoteStatus("REMOTO ●", "Último pedido concluído", success)
+                    renderOperation(
+                        HumanOperationResult(
+                            OperationPhase.SUCCESS_EMPTY,
+                            "Concluído remotamente",
+                            title,
+                            "source=GitHub Issues",
+                            true
+                        )
+                    )
+                }
+                RemoteJobState.FAILED -> {
+                    renderRemoteStatus("REMOTO !", "Último pedido falhou", danger)
+                    renderOperation(
+                        HumanOperationResult(
+                            OperationPhase.COMMAND_ERROR,
+                            "Falha na operação remota",
+                            title,
+                            "source=GitHub Issues",
+                            false
+                        )
+                    )
+                }
+                RemoteJobState.REJECTED -> {
+                    renderRemoteStatus("REMOTO ×", "Pedido bloqueado pela segurança", danger)
+                    renderOperation(
+                        HumanOperationResult(
+                            OperationPhase.COMMAND_ERROR,
+                            "Pedido remoto bloqueado",
+                            title,
+                            "source=GitHub Issues",
+                            false
+                        )
+                    )
+                }
+                RemoteJobState.UNCERTAIN -> {
+                    renderRemoteStatus("REMOTO !", "Estado final precisa ser conferido", warning)
+                    renderOperation(
+                        HumanOperationResult(
+                            OperationPhase.CANCELLED,
+                            "Resultado remoto incerto",
+                            "A execução foi interrompida sem prova suficiente do estado final. Não será repetida automaticamente.",
+                            title,
+                            false
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun renderRemoteTransportState(state: String) {
+        val lower = state.lowercase(Locale.ROOT)
+        when {
+            "falha" in lower || "erro" in lower -> renderRemoteStatus("REMOTO !", state, danger)
+            "verificando" in lower -> renderRemoteStatus("REMOTO ◌", "Verificando pedidos", cyan)
+            "parado" in lower -> renderRemoteStatus("REMOTO OFF", "Controle remoto parado", textMuted)
+            else -> renderRemoteStatus("REMOTO ●", state.removePrefix("Remoto · ").take(80), success)
+        }
+    }
+
+    private fun renderRemoteStatus(label: String, detail: String, color: Int) {
+        if (!::remoteStatusView.isInitialized) return
+        remoteStatusView.text = label
+        remoteStatusView.setTextColor(color)
+        remoteStatusView.contentDescription = "$label · $detail"
+    }
+
+    private fun showRemoteControlDialog() {
+        val config = remoteControlConfig()
+        val token = input("Token GitHub fine-grained", "", false).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = if (remoteCredentials.hasToken()) "Credencial já protegida · digite apenas para substituir" else "Cole a credencial do repositório privado"
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            background = rounded(surface, 24, line)
+        }
+        panel.addView(text("Controle remoto", 22f, textPrimary, true))
+        panel.addView(
+            text(
+                "GitHub privado → S23 → ADB → TayTech. O GitHub é só o transporte; comandos e resultados continuam dentro do CUSTOMROM.",
+                11f,
+                textSecondary,
+                false
+            ),
+            margins(top = 6)
+        )
+        panel.addView(
+            text(
+                "${config.owner}/${config.repo}  ·  ${config.titlePrefix}\nAlvo: ${config.target}",
+                10f,
+                textMuted,
+                false
+            ).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) },
+            margins(top = 14)
+        )
+        panel.addView(token, margins(top = 14))
+        panel.addView(
+            text(
+                if (remoteCredentials.hasToken()) "Credencial protegida pelo Android Keystore." else "A credencial nunca é gravada no código, logs ou Evidence Pack.",
+                10f,
+                if (remoteCredentials.hasToken()) success else warning,
+                true
+            ),
+            margins(top = 8)
+        )
+
+        lateinit var dialog: AlertDialog
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actions.addView(
+            primaryButton(if (config.enabled) "Salvar e manter ativo" else "Ativar") {
+                val entered = token.text.toString().trim()
+                if (entered.isNotEmpty()) remoteCredentials.saveToken(entered)
+                if (!remoteCredentials.hasToken()) {
+                    toast("Informe a credencial GitHub para ativar")
+                    return@primaryButton
+                }
+                prefs.edit().putBoolean("remote_control_enabled", true).apply()
+                startRemoteControl()
+                dialog.dismiss()
+            },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) }
+        )
+        actions.addView(
+            softButton("Desativar") {
+                prefs.edit().putBoolean("remote_control_enabled", false).apply()
+                remoteReceiver?.close()
+                remoteReceiver = null
+                renderRemoteStatus("REMOTO OFF", "Controle remoto desativado", textMuted)
+                dialog.dismiss()
+            },
+            LinearLayout.LayoutParams(0, dp(48), 1f)
+        )
+        panel.addView(actions, margins(top = 14))
+        panel.addView(
+            dangerButton("Esquecer credencial") {
+                remoteCredentials.clearToken()
+                prefs.edit().putBoolean("remote_control_enabled", false).apply()
+                remoteReceiver?.close()
+                remoteReceiver = null
+                renderRemoteStatus("REMOTO OFF", "Credencial removida", textMuted)
+                toast("Credencial removida")
+                dialog.dismiss()
+            },
+            margins(top = 8)
+        )
+        dialog = premiumDialog(panel)
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     }
 
     private fun showConnectionDialog() {
