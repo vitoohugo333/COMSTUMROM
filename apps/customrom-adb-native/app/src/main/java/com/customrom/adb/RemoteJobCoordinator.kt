@@ -18,7 +18,8 @@ class RemoteJobCoordinator(
     private val store: IssueJobStore,
     private val commandPort: RemoteCommandPort,
     private val publisher: RemoteReceiptPublisher,
-    private val onState: (RemoteJobState, String) -> Unit = { _, _ -> }
+    private val onState: (RemoteJobState, String) -> Unit = { _, _ -> },
+    private val onVerifiedChange: (VerifiedRemoteChange) -> Unit = {}
 ) : RemoteIssueHandler {
     private val activeRequestIds = mutableSetOf<String>()
 
@@ -223,6 +224,23 @@ class RemoteJobCoordinator(
         store.markTerminal(job.requestId, state, receipt)
         activeRequestIds -= job.requestId
         onState(state, operation.title)
+        if (
+            state == RemoteJobState.COMPLETED &&
+            operation.effectful &&
+            operation.verificationCommand.isNotBlank()
+        ) {
+            runCatching {
+                onVerifiedChange(
+                    VerifiedRemoteChange(
+                        job = job,
+                        operation = operation,
+                        previousState = previousState,
+                        currentState = currentState,
+                        outcome = outcome
+                    )
+                )
+            }
+        }
         runCatching {
             publisher.comment(issue.number, receipt)
             publisher.close(issue.number)
