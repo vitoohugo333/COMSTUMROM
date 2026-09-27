@@ -39,28 +39,24 @@ jobs:
         run: python3 tools/validate_native_customrom.py
 
       - name: Android SDK
-        if: steps.validate.outcome == 'success'
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 15859902
           packages: platform-tools
 
       - name: Install stable Android API 36
-        if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Setup Gradle
-        if: steps.validate.outcome == 'success'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.5.0'
 
       - name: Run JVM unit tests
         id: unit_tests
-        if: steps.validate.outcome == 'success'
         continue-on-error: true
         run: gradle -p apps/customrom-adb-native :app:testDebugUnitTest --stacktrace
 
