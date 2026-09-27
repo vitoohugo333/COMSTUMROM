@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-customrom-adb-s23-practical-v61-${{ github.ref }}
+  group: build-customrom-adb-s23-practical-v61-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
