@@ -122,6 +122,79 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun successfulEffectRunsVerificationAndPublishesObservedCurrentState() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package com.spotify.music new state: disabled-user"),
+                    ok("state=disabled")
+                )
+            )
+        )
+        val coordinator = coordinator(store, executor, FakePublisher())
+        val jobIssue = actionIssue(
+            requestId = "cr-20260927-0407",
+            action = "package.disable",
+            args = """{"package":"com.spotify.music"}""",
+            allowChanges = true
+        )
+
+        coordinator.handle(jobIssue)
+
+        assertEquals(3, executor.commands.size)
+        assertTrue(executor.commands.last().contains("pm list packages -d"))
+        val stored = store.get("cr-20260927-0407")
+        assertEquals(RemoteJobState.COMPLETED, stored?.state)
+        assertTrue(stored?.receipt.orEmpty().contains("Estado atual: state=disabled"))
+    }
+
+    @Test
+    fun verificationTransportFailureAfterEffectBecomesUncertain() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package com.spotify.music new state: disabled-user"),
+                    RemoteShellOutcome("", "", -1, 25, IllegalStateException("verification link dropped"))
+                )
+            )
+        )
+        val coordinator = coordinator(store, executor, FakePublisher())
+
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0408",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(3, executor.commands.size)
+        assertEquals(RemoteJobState.UNCERTAIN, store.get("cr-20260927-0408")?.state)
+    }
+
+    @Test
+    fun busyCommandPortDefersIssueWithoutConsumingIt() {
+        val store = store()
+        val executor = FakeCommandPort().apply { available = false }
+        val publisher = FakePublisher()
+        val coordinator = coordinator(store, executor, publisher)
+        val jobIssue = issue("cr-20260927-0409", shell = "getprop ro.product.model")
+
+        val result = coordinator.handle(jobIssue)
+
+        assertEquals(RemoteHandleResult.BUSY, result)
+        assertEquals(ReplayDecision.NEW, store.check("cr-20260927-0409", CustomromJobContract.canonicalDigest(CustomromJobContract.parse(jobIssue.body))))
+        assertTrue(executor.commands.isEmpty())
+        assertEquals(0, publisher.commentAttempts)
+        assertTrue(publisher.closed.isEmpty())
+    }
+
+    @Test
     fun claimedBeforeEffectRecoversAsNewAfterProcessRestart() {
         val file = tempFile()
         IssueJobStore(file).markClaimed("cr-20260927-0406", "digest-a", effectful = true)
