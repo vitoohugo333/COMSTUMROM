@@ -252,6 +252,47 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun verifiedEffectEmitsChangeRecordDataOnce() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package disabled"),
+                    ok("state=disabled")
+                )
+            )
+        )
+        val changes = mutableListOf<VerifiedRemoteChange>()
+        val coordinator = RemoteJobCoordinator(
+            config = GitHubControlConfig.defaults().copy(enabled = true),
+            registry = RemoteOperationRegistry(),
+            store = store,
+            commandPort = executor,
+            publisher = FakePublisher(),
+            onVerifiedChange = { changes += it }
+        )
+
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0410",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(1, changes.size)
+        val change = changes.single()
+        assertEquals("package.disable", change.job.action)
+        assertEquals("com.spotify.music", change.job.args["package"])
+        assertEquals("state=enabled", change.previousState)
+        assertEquals("state=disabled", change.currentState)
+        assertEquals("pm enable com.spotify.music", change.operation.rollbackCommand)
+        assertEquals(0, change.outcome.exitCode)
+    }
+
+    @Test
     fun busyCommandPortDefersIssueWithoutConsumingIt() {
         val store = store()
         val executor = FakeCommandPort().apply { available = false }
