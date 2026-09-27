@@ -102,8 +102,8 @@ class RemoteJobCoordinatorTest {
         )
 
         assertEquals(3, executor.commands.size)
-        assertTrue(executor.commands[2].contains("state=disabled").not())
         assertTrue(executor.commands[2].contains("pm list packages -d"))
+        assertTrue(executor.commands[2].contains("echo state=disabled"))
         assertEquals(RemoteJobState.COMPLETED, store.get("cr-20260927-0407")?.state)
         val receipt = store.get("cr-20260927-0407")?.receipt.orEmpty()
         assertTrue(receipt.contains("Estado anterior: state=enabled"))
