@@ -246,6 +246,7 @@ jobs:
         env:
           APPLY_OUTCOME: ${{ steps.apply_v61.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit_tests.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
           SOURCE_OUTCOME: ${{ steps.source_commit.outcome }}
           COLLECT_OUTCOME: ${{ steps.collect.outcome }}
