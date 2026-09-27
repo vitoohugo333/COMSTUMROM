@@ -63,7 +63,7 @@ class RemoteJobCoordinator(
             return reject(issue, job, digest, "A operação altera estado e exige allowChanges=true")
         }
         if (!commandPort.isAvailable()) {
-            return failBeforeExecution(issue, job, digest, operation, "ADB indisponível")
+            return RemoteHandleResult.BUSY
         }
 
         store.markClaimed(job.requestId, digest, operation.effectful)
@@ -99,6 +99,8 @@ class RemoteJobCoordinator(
                 activeRequestIds -= job.requestId
                 onState(RemoteJobState.UNCERTAIN, operation.title)
                 runCatching { publisher.comment(issue.number, receipt) }
+            } else if (outcome.transportError == null && outcome.exitCode == 0 && operation.verificationCommand.isNotBlank()) {
+                executeVerification(issue, job, operation, outcome, previousState)
             } else {
                 val state = if (outcome.transportError == null && outcome.exitCode == 0) RemoteJobState.COMPLETED else RemoteJobState.FAILED
                 finishTerminal(issue, job, operation, outcome, state, previousState)
@@ -117,15 +119,107 @@ class RemoteJobCoordinator(
         }
     }
 
+    private fun executeVerification(
+        issue: RemoteGitHubIssue,
+        job: RemoteJob,
+        operation: ResolvedRemoteOperation,
+        mainOutcome: RemoteShellOutcome,
+        previousState: String
+    ) {
+        val accepted = commandPort.execute(
+            operation.verificationCommand,
+            job.timeoutSeconds * 1000L
+        ) { verification ->
+            if (verification.transportError != null || verification.exitCode != 0) {
+                if (operation.effectful) {
+                    markUncertain(issue, job, operation, mainOutcome, previousState, verification)
+                } else {
+                    finishTerminal(
+                        issue,
+                        job,
+                        operation,
+                        verification,
+                        RemoteJobState.FAILED,
+                        previousState
+                    )
+                }
+            } else {
+                finishTerminal(
+                    issue,
+                    job,
+                    operation,
+                    mainOutcome,
+                    RemoteJobState.COMPLETED,
+                    previousState,
+                    verification.stdout.trim()
+                )
+            }
+        }
+
+        if (!accepted) {
+            if (operation.effectful) {
+                val verification = RemoteShellOutcome(
+                    "",
+                    "",
+                    -1,
+                    0,
+                    IllegalStateException("Verificação não pôde ser iniciada")
+                )
+                markUncertain(issue, job, operation, mainOutcome, previousState, verification)
+            } else {
+                finishTerminal(
+                    issue,
+                    job,
+                    operation,
+                    RemoteShellOutcome("", "", -1, 0, IllegalStateException("Verificação indisponível")),
+                    RemoteJobState.FAILED,
+                    previousState
+                )
+            }
+        }
+    }
+
+    private fun markUncertain(
+        issue: RemoteGitHubIssue,
+        job: RemoteJob,
+        operation: ResolvedRemoteOperation,
+        mainOutcome: RemoteShellOutcome,
+        previousState: String,
+        verification: RemoteShellOutcome
+    ) {
+        val combined = mainOutcome.copy(
+            stderr = buildString {
+                if (mainOutcome.stderr.isNotBlank()) append(mainOutcome.stderr)
+                if (isNotEmpty()) append('\n')
+                append("verification: ")
+                append(
+                    verification.transportError?.message
+                        ?: verification.stderr.ifBlank { "exit=" + verification.exitCode }
+                )
+            },
+            transportError = verification.transportError ?: mainOutcome.transportError
+        )
+        val receipt = RemoteReceiptFormatter.format(
+            receiptData(job, operation, combined, RemoteJobState.UNCERTAIN, previousState)
+        )
+        store.markUncertain(job.requestId, receipt)
+        activeRequestIds -= job.requestId
+        onState(RemoteJobState.UNCERTAIN, operation.title)
+        runCatching { publisher.comment(issue.number, receipt) }
+    }
+
     private fun finishTerminal(
         issue: RemoteGitHubIssue,
         job: RemoteJob,
         operation: ResolvedRemoteOperation,
         outcome: RemoteShellOutcome,
         state: RemoteJobState,
-        previousState: String = ""
+        previousState: String = "",
+        currentState: String = ""
     ) {
-        val receipt = RemoteReceiptFormatter.format(receiptData(job, operation, outcome, state, previousState))
+        val receipt = RemoteReceiptFormatter.format(
+            receiptData(job, operation, outcome, state, previousState, currentState)
+        )
         store.markTerminal(job.requestId, state, receipt)
         activeRequestIds -= job.requestId
         onState(state, operation.title)
@@ -165,7 +259,8 @@ class RemoteJobCoordinator(
         operation: ResolvedRemoteOperation,
         outcome: RemoteShellOutcome,
         state: RemoteJobState,
-        previousState: String = ""
+        previousState: String = "",
+        currentState: String = ""
     ): RemoteReceiptData = RemoteReceiptData(
         requestId = job.requestId,
         title = operation.title,
@@ -177,6 +272,7 @@ class RemoteJobCoordinator(
         exitCode = outcome.exitCode,
         transportError = outcome.transportError?.message.orEmpty(),
         previousState = previousState,
+        currentState = currentState,
         rollbackCommand = operation.rollbackCommand
     )
 
