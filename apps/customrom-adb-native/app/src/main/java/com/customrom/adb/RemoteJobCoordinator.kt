@@ -19,11 +19,11 @@ class RemoteJobCoordinator(
     private val commandPort: RemoteCommandPort,
     private val publisher: RemoteReceiptPublisher,
     private val onState: (RemoteJobState, String) -> Unit = { _, _ -> }
-) {
+) : RemoteIssueHandler {
     private val activeRequestIds = mutableSetOf<String>()
 
     @Synchronized
-    fun handle(issue: RemoteGitHubIssue): RemoteHandleResult {
+    override fun handle(issue: RemoteGitHubIssue): RemoteHandleResult {
         val admission = RemoteAdmissionPolicy.evaluate(issue, config)
         if (admission is RemoteAdmissionDecision.Rejected) {
             runCatching { publisher.comment(issue.number, rejectedReceipt("unknown", admission.reason)) }
