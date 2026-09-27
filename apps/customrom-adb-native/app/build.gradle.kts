@@ -59,4 +59,6 @@ dependencies {
     // Kadb 2.1.1 usa Coroutines 1.10.2; declarar a mesma versão diretamente
     // torna a API kotlinx.coroutines disponível no classpath de compilação do app.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
