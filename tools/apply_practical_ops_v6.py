@@ -538,7 +538,7 @@ replace_once(
     VALIDATOR,
     '        BUILD,\n    ):\n',
     '        BUILD,\n        SETTINGS,\n        AGENT_MANIFEST,\n        AGENT_ACTIVITY,\n        AGENT_RECEIVER,\n    ):\n',
-    '        AGENT_RECEIVER,\n    ):',
+    '        REMOTE_RECEIVER,\n    ):',
 )
 
 replace_once(
