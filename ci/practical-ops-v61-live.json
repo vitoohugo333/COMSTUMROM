@@ -1,8 +1,0 @@
-{
-  "status": "RUNNING",
-  "source_branch": "refactor/customrom-adb-s23-premium",
-  "input_commit": "78533dbd16b27705719d6b3f4f10dd64371bec20",
-  "run_id": 36352378543,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36352378543",
-  "started_at_utc": "2026-09-27T21:37:12Z"
-}
