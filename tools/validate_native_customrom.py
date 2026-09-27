@@ -28,6 +28,15 @@ SETTINGS = APP / "settings.gradle.kts"
 AGENT_MANIFEST = APP / "agent/src/main/AndroidManifest.xml"
 AGENT_ACTIVITY = APP / "agent/src/main/java/com/customrom/agent/AgentActivity.java"
 AGENT_RECEIVER = APP / "agent/src/main/java/com/customrom/agent/BootReceiver.java"
+REMOTE_CONTRACT = APP / "app/src/main/java/com/customrom/adb/CustomromJobContract.kt"
+REMOTE_STORE = APP / "app/src/main/java/com/customrom/adb/IssueJobStore.kt"
+REMOTE_REGISTRY = APP / "app/src/main/java/com/customrom/adb/RemoteOperationRegistry.kt"
+REMOTE_RECEIPT = APP / "app/src/main/java/com/customrom/adb/RemoteReceiptFormatter.kt"
+REMOTE_CLIENT = APP / "app/src/main/java/com/customrom/adb/GitHubIssueClient.kt"
+REMOTE_CREDENTIAL = APP / "app/src/main/java/com/customrom/adb/GitHubCredentialStore.kt"
+REMOTE_ADMISSION = APP / "app/src/main/java/com/customrom/adb/RemoteAdmissionPolicy.kt"
+REMOTE_COORDINATOR = APP / "app/src/main/java/com/customrom/adb/RemoteJobCoordinator.kt"
+REMOTE_RECEIVER = APP / "app/src/main/java/com/customrom/adb/GitHubIssueReceiver.kt"
 
 MUTATING = [
     r"\bpm\s+disable",
@@ -125,6 +134,18 @@ REQUIRED_MODEL_SIGNALS = [
     "Tempo esgotado",
 ]
 
+REQUIRED_REMOTE_UI_SIGNALS = [
+    "remoteStatusView",
+    "showRemoteControlDialog()",
+    "startRemoteControl()",
+    "GitHubCredentialStore",
+    "GitHubIssueReceiver",
+    "GitHubControlConfig.defaults()",
+    "RemoteJobCoordinator",
+    "RemoteCommandPort",
+    "Remoto",
+]
+
 REQUIRED_CONTROLLER_SIGNALS = [
     "Kadb.tryConnection",
     "Kadb.pair",
@@ -166,6 +187,15 @@ def main() -> int:
         AGENT_MANIFEST,
         AGENT_ACTIVITY,
         AGENT_RECEIVER,
+        REMOTE_CONTRACT,
+        REMOTE_STORE,
+        REMOTE_REGISTRY,
+        REMOTE_RECEIPT,
+        REMOTE_CLIENT,
+        REMOTE_CREDENTIAL,
+        REMOTE_ADMISSION,
+        REMOTE_COORDINATOR,
+        REMOTE_RECEIVER,
     ):
         if not path.is_file():
             fail(f"arquivo obrigatório ausente: {path.relative_to(ROOT)}")
@@ -186,6 +216,10 @@ def main() -> int:
     require_signals(ops_models_src, REQUIRED_MODEL_SIGNALS, "PremiumOpsModels")
     require_signals(action_engine_src, REQUIRED_ACTION_ENGINE_SIGNALS, "FunctionalActionEngine")
     require_signals(controller_src, REQUIRED_CONTROLLER_SIGNALS, "AdbRemoteController")
+    require_signals(ops_src, REQUIRED_REMOTE_UI_SIGNALS, "PremiumOpsActivity/remote-control")
+
+    if 'Triple("github"' in ops_src.lower() or 'navButtons["github"]' in ops_src:
+        fail("GitHub é transporte invisível e não pode virar destino de navegação")
 
     if "executeOperation(recipe.name, recipe.command, recipe.risk, showDialog = false)" not in ops_src:
         fail("receitas precisam terminar na camada acionável; log técnico não pode abrir automaticamente como resultado principal")
@@ -352,6 +386,8 @@ def main() -> int:
     print("customrom_agent_one_tap_install=present")
     print("log_storm_diagnostic=present")
     print("evidence_export=present")
+    print("github_issue_adb_bridge=present")
+    print("github_transport_hidden_from_navigation=present")
     print("adb_backend=com.flyfishxu:kadb:2.1.1")
     print("coroutines=1.10.2")
     print("compileSdk=36")
