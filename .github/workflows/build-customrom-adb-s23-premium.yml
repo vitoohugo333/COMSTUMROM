@@ -108,15 +108,21 @@ jobs:
         with:
           gradle-version: '9.5.0'
 
+      - name: Run JVM unit tests
+        id: unit_tests
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
+        run: gradle -p apps/customrom-adb-native :app:testDebugUnitTest --stacktrace
+
       - name: Build S23 app with embedded TayTech Agent
         id: android_build
-        if: steps.validate.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.unit_tests.outcome == 'success'
         continue-on-error: true
         run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
 
       - name: Commit verified practical V6.1 source
         id: source_commit
-        if: steps.validate.outcome == 'success' && steps.android_build.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.unit_tests.outcome == 'success' && steps.android_build.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -191,6 +197,7 @@ jobs:
         env:
           APPLY_OUTCOME: ${{ steps.apply_v61.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit_tests.outcome }}
           BUILD_OUTCOME: ${{ steps.android_build.outcome }}
           SOURCE_OUTCOME: ${{ steps.source_commit.outcome }}
           COLLECT_OUTCOME: ${{ steps.collect.outcome }}
@@ -199,7 +206,7 @@ jobs:
           AGENT_SHA: ${{ steps.collect.outputs.agent_sha }}
         shell: bash
         run: |
-          if [ "$APPLY_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ] && [ "$SOURCE_OUTCOME" = "success" ] && [ "$COLLECT_OUTCOME" = "success" ] && [ "$UPLOAD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
+          if [ "$APPLY_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$UNIT_TEST_OUTCOME" = "success" ] && [ "$BUILD_OUTCOME" = "success" ] && [ "$SOURCE_OUTCOME" = "success" ] && [ "$COLLECT_OUTCOME" = "success" ] && [ "$UPLOAD_OUTCOME" = "success" ]; then STATUS=PASS; else STATUS=FAIL; fi
           git reset --hard HEAD
           git clean -fd
           git pull --rebase origin ${GITHUB_REF_NAME}
@@ -210,6 +217,7 @@ jobs:
             "status": "${STATUS}",
             "apply_v61": "${APPLY_OUTCOME}",
             "validation": "${VALIDATE_OUTCOME}",
+            "unit_tests": "${UNIT_TEST_OUTCOME}",
             "android_build": "${BUILD_OUTCOME}",
             "source_commit_step": "${SOURCE_OUTCOME}",
             "collect": "${COLLECT_OUTCOME}",
@@ -246,6 +254,7 @@ jobs:
         run: |
           test "$APPLY_OUTCOME" = "success"
           test "$VALIDATE_OUTCOME" = "success"
+          test "$UNIT_TEST_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
           test "$SOURCE_OUTCOME" = "success"
           test "$COLLECT_OUTCOME" = "success"
