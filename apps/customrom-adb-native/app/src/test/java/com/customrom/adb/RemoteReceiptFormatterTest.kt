@@ -66,6 +66,25 @@ class RemoteReceiptFormatterTest {
     }
 
     @Test
+    fun rejectedReceiptSaysPolicyBlockedInsteadOfPretendingTaytechRanCommand() {
+        val receipt = RemoteReceiptFormatter.format(
+            RemoteReceiptData(
+                requestId = "cr-20260927-0290",
+                title = "Operação remota rejeitada",
+                state = RemoteJobState.REJECTED,
+                risk = "VERMELHO",
+                durationMs = 0,
+                stdout = "",
+                stderr = "Autor não autorizado",
+                exitCode = -1
+            )
+        )
+
+        assertTrue(receipt.contains("política local", ignoreCase = true))
+        assertFalse(receipt.contains("TayTech respondeu"))
+    }
+
+    @Test
     fun boundsLargeOutputAndMarksTruncation() {
         val receipt = RemoteReceiptFormatter.format(
             RemoteReceiptData(
