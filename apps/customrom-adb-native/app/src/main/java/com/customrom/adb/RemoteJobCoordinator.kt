@@ -26,7 +26,9 @@ class RemoteJobCoordinator(
     override fun handle(issue: RemoteGitHubIssue): RemoteHandleResult {
         val admission = RemoteAdmissionPolicy.evaluate(issue, config)
         if (admission is RemoteAdmissionDecision.Rejected) {
-            runCatching { publisher.comment(issue.number, rejectedReceipt("unknown", admission.reason)) }
+            val receipt = rejectedReceipt("unknown", admission.reason)
+            runCatching { publisher.comment(issue.number, receipt) }
+            runCatching { publisher.close(issue.number) }
             return RemoteHandleResult.REJECTED
         }
 
