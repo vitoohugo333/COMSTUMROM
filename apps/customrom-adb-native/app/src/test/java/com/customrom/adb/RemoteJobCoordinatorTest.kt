@@ -27,6 +27,22 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun rejectedAdmissionIsClosedSoItDoesNotSpamEveryPoll() {
+        val store = store()
+        val executor = FakeCommandPort()
+        val publisher = FakePublisher()
+        val coordinator = coordinator(store, executor, publisher)
+        val badIssue = issue("cr-20260927-0490", shell = "getprop").copy(authorLogin = "intruder")
+
+        val result = coordinator.handle(badIssue)
+
+        assertEquals(RemoteHandleResult.REJECTED, result)
+        assertTrue(executor.commands.isEmpty())
+        assertEquals(1, publisher.commentAttempts)
+        assertEquals(listOf(badIssue.number), publisher.closed)
+    }
+
+    @Test
     fun yellowJobWithoutAllowChangesIsRejectedWithoutAdb() {
         val store = store()
         val executor = FakeCommandPort()
