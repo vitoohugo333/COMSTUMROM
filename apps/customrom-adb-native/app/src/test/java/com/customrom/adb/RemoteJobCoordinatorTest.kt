@@ -193,7 +193,7 @@ class RemoteJobCoordinatorTest {
     )
 
     private fun jsonString(value: String): String =
-        """ + value.replace("\\", "\\\\").replace(""", "\\"") + """
+        org.json.JSONObject.quote(value)
 
     private fun ok(stdout: String = "ok") =
         RemoteShellOutcome(stdout, "", 0, 10, null)
