@@ -43,3 +43,12 @@ data class StoredRemoteJob(
     val receipt: String = "",
     val updatedAt: Long = System.currentTimeMillis()
 )
+
+
+data class VerifiedRemoteChange(
+    val job: RemoteJob,
+    val operation: ResolvedRemoteOperation,
+    val previousState: String,
+    val currentState: String,
+    val outcome: RemoteShellOutcome
+)
