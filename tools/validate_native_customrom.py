@@ -37,6 +37,8 @@ REMOTE_CREDENTIAL = APP / "app/src/main/java/com/customrom/adb/GitHubCredentialS
 REMOTE_ADMISSION = APP / "app/src/main/java/com/customrom/adb/RemoteAdmissionPolicy.kt"
 REMOTE_COORDINATOR = APP / "app/src/main/java/com/customrom/adb/RemoteJobCoordinator.kt"
 REMOTE_RECEIVER = APP / "app/src/main/java/com/customrom/adb/GitHubIssueReceiver.kt"
+REMOTE_GATE = APP / "app/src/main/java/com/customrom/adb/RemoteOperationGate.kt"
+REMOTE_LEDGER_MAPPER = APP / "app/src/main/java/com/customrom/adb/RemoteChangeLedgerMapper.kt"
 
 MUTATING = [
     r"\bpm\s+disable",
@@ -198,6 +200,8 @@ def main() -> int:
         REMOTE_ADMISSION,
         REMOTE_COORDINATOR,
         REMOTE_RECEIVER,
+        REMOTE_GATE,
+        REMOTE_LEDGER_MAPPER,
     ):
         if not path.is_file():
             fail(f"arquivo obrigatório ausente: {path.relative_to(ROOT)}")
@@ -222,6 +226,31 @@ def main() -> int:
 
     if 'Triple("github"' in ops_src.lower() or 'navButtons["github"]' in ops_src:
         fail("GitHub é transporte invisível e não pode virar destino de navegação")
+
+    if "private fun ensureNoRemoteJob()" not in ops_src:
+        fail("PremiumOps precisa ter um gate único para impedir ADB local durante job remoto")
+    for function_name in ("executeNow", "cancelActiveOperation", "installCustomromAgent", "installCustomromAgentNow"):
+        marker = f"private fun {function_name}"
+        start = ops_src.find(marker)
+        if start < 0:
+            fail(f"função local obrigatória ausente para exclusividade ADB: {function_name}")
+        next_fun = ops_src.find("\n    private fun ", start + len(marker))
+        block = ops_src[start: next_fun if next_fun >= 0 else len(ops_src)]
+        if "ensureNoRemoteJob()" not in block:
+            fail(f"{function_name} não respeita o gate de job remoto")
+
+    connection_start = ops_src.find("private fun showConnectionDialog()")
+    connection_end = ops_src.find("\n    private fun loadRecipes", connection_start)
+    if connection_start < 0 or connection_end < 0:
+        fail("showConnectionDialog não pôde ser validado")
+    connection_block = ops_src[connection_start:connection_end]
+    if connection_block.count("ensureNoRemoteJob()") < 5:
+        fail("controles manuais de conexão/pairing precisam revalidar o gate remoto no toque")
+
+    if "remoteOperationGate.onRemoteState(state)" not in ops_src:
+        fail("estado CLAIMED/RUNNING remoto precisa alimentar o gate de exclusividade local")
+    if "RemoteChangeLedgerMapper.toRecord" not in ops_src:
+        fail("mudanças remotas verificadas precisam usar o mapper único do ChangeLedger")
 
     if "executeOperation(recipe.name, recipe.command, recipe.risk, showDialog = false)" not in ops_src:
         fail("receitas precisam terminar na camada acionável; log técnico não pode abrir automaticamente como resultado principal")
