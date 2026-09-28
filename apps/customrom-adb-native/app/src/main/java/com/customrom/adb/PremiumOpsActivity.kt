@@ -315,7 +315,6 @@ class PremiumOpsActivity : Activity() {
         }, margins(top = 8))
         root.addView(featureAction("▦", "Gerenciar aplicativos", "Lista real da TayTech com criticidade, confiança, motivos e rollback.") {
             showSection("apps")
-            if (appPackages.isEmpty()) loadAppInventory()
         }, margins(top = 8))
 
         root.addView(sectionTitle("Personalização rápida", "Mudanças reversíveis continuam exigindo confirmação"), margins(top = 22))
@@ -766,14 +765,14 @@ class PremiumOpsActivity : Activity() {
         val system = parsePackageLines(sections["__SYSTEM__"].orEmpty()).keys
         val third = parsePackageLines(sections["__THIRD__"].orEmpty()).keys
         val disabled = parsePackageLines(sections["__DISABLED__"].orEmpty()).keys
-        val runningText = sections["__RUNNING__"].orEmpty().joinToString("\n")
+        val runningNames = sections["__RUNNING__"].orEmpty().mapNotNull { line -> line.trim().split(Regex("\\s+")).lastOrNull()?.takeIf { it.isNotBlank() } }.toSet()
         return all.map { (pkg, path) ->
             PackageSnapshot(
                 packageName = pkg,
                 apkPath = path,
                 kind = when { third.contains(pkg) -> "Usuário"; system.contains(pkg) -> "Sistema"; path.contains("/data/app/") -> "Usuário"; else -> "Sistema" },
                 disabled = disabled.contains(pkg),
-                running = runningText.contains(pkg)
+                running = runningNames.any { it == pkg || it.startsWith("$pkg:") }
             )
         }
     }
@@ -1232,7 +1231,7 @@ class PremiumOpsActivity : Activity() {
     private fun openAppsFilter(filter: String) {
         appFilter = filter
         showSection("apps")
-        if (appPackages.isEmpty()) loadAppInventory() else refreshAppList()
+        if (appPackages.isNotEmpty()) refreshAppList()
     }
 
     private fun openPackageFromAction(packageNameRaw: String) {
@@ -1240,9 +1239,7 @@ class PremiumOpsActivity : Activity() {
         appFilter = "Todos"
         showSection("apps")
         if (::appSearch.isInitialized) appSearch.setText(pkg)
-        if (appPackages.isEmpty()) {
-            loadAppInventory()
-        } else {
+        if (appPackages.isNotEmpty()) {
             refreshAppList()
             appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
         }
