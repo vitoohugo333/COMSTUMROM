@@ -97,7 +97,7 @@ class IssueJobStore(private val file: File) {
         val records = readAll().filterNot { it.requestId == record.requestId }.toMutableList()
         check(!unreadable) { "Remote job store is unreadable; refusing to overwrite replay evidence" }
         records += record
-        writeAll(records.takeLast(500))
+        writeAll(records)
     }
 
     private fun readAll(): List<StoredRemoteJob> {
