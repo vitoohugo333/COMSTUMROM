@@ -94,6 +94,7 @@ class PremiumOpsActivity : Activity() {
     private lateinit var appStatusView: TextView
     private lateinit var appFiltersHost: LinearLayout
     private lateinit var appFilterSummaryView: TextView
+    private val appResourceViews = linkedMapOf<String, TextView>()
     private lateinit var liveRamValue: TextView
     private lateinit var liveRamDetail: TextView
     private lateinit var liveRamBar: ProgressBar
@@ -415,7 +416,7 @@ class PremiumOpsActivity : Activity() {
             latestTelemetryRaw = outcome.stdout
             latestTelemetry = snapshot
             renderLiveTelemetry(snapshot)
-            if (currentScreen == "apps") refreshAppList()
+            if (currentScreen == "apps") refreshVisibleAppUsage()
         }
     }
 
@@ -674,6 +675,7 @@ class PremiumOpsActivity : Activity() {
     private fun refreshAppList() {
         if (!::appListHost.isInitialized) return
         appListHost.removeAllViews()
+        appResourceViews.clear()
         val query = if (::appSearch.isInitialized) appSearch.text.toString() else ""
         val changed = ledger.list().map { it.packageName }.toSet()
         val filtered = AppInventoryProjection.filter(appPackages, appFilter, query, changed)
@@ -686,13 +688,14 @@ class PremiumOpsActivity : Activity() {
             appListHost.addView(emptyState(if (appPackages.isEmpty()) "Inventário ainda não carregado" else "Nenhum aplicativo neste filtro", if (appPackages.isEmpty()) "A conexão saudável dispara a carga automaticamente; você também pode tocar em Atualizar inventário." else "O filtro está ativo. Troque o filtro ou a busca para ampliar o resultado."))
             return
         }
-        filtered.forEach { appListHost.addView(appRow(it), margins(bottom = 8)) }
+        filtered.forEach { snapshot ->
+            appListHost.addView(appRow(snapshot, changed.contains(snapshot.packageName)), margins(bottom = 8))
+        }
     }
 
-    private fun appRow(snapshot: PackageSnapshot): View {
+    private fun appRow(snapshot: PackageSnapshot, changedByCustomrom: Boolean): View {
         val assessment = PackageIntelligence.assess(snapshot)
         val usage = latestTelemetry?.usageForPackage(snapshot.packageName)
-        val changedByCustomrom = ledger.list().any { it.packageName == snapshot.packageName }
         val row = card().apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)) }
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val identity = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -710,11 +713,10 @@ class PremiumOpsActivity : Activity() {
         row.addView(states, margins(top = 8))
         row.addView(text(snapshot.kind, 10f, textSecondary, false).apply { setPadding(0, dp(6), 0, 0) })
 
-        if (usage != null && (usage.pssKb > 0L || usage.cpuPercent > 0.0)) {
-            row.addView(text(resourceUsageText(usage), 11f, cyan, true).apply { setPadding(0, dp(6), 0, 0) })
-        } else if (snapshot.running) {
-            row.addView(text("Consumo ainda não apareceu na última amostra ao vivo.", 10f, textMuted, false).apply { setPadding(0, dp(5), 0, 0) })
-        }
+        val resourceView = text("", 11f, textMuted, true).apply { setPadding(0, dp(6), 0, 0) }
+        updateAppResourceText(resourceView, snapshot, usage)
+        appResourceViews[snapshot.packageName] = resourceView
+        row.addView(resourceView)
         row.addView(text(assessment.reasons.firstOrNull() ?: "Analisar para obter mais evidência", 10f, textMuted, false).apply { setPadding(0, dp(5), 0, 0); maxLines = 2 })
         row.setOnClickListener { showAppDetail(snapshot) }
         pressFeedback(row)
@@ -1385,7 +1387,11 @@ class PremiumOpsActivity : Activity() {
             OperationPhase.CANCELLED -> "! INTERROMPIDO"
             else -> "ESTADO"
         }
-        operationTitle.text = "$phaseLabel · ${result.title}"
+        operationTitle.text = when (result.phase) {
+            OperationPhase.RUNNING -> "$phaseLabel · ${result.detail.take(64)}"
+            OperationPhase.SUCCESS_WITH_OUTPUT, OperationPhase.SUCCESS_EMPTY -> phaseLabel
+            else -> "$phaseLabel · ${result.title}"
+        }
         val terminalPhase = result.phase in setOf(OperationPhase.SUCCESS_WITH_OUTPUT, OperationPhase.SUCCESS_EMPTY, OperationPhase.COMMAND_ERROR, OperationPhase.TRANSPORT_ERROR, OperationPhase.CANCELLED)
         operationDetail.text = result.detail.take(if (terminalPhase) 215 else 250) + if (terminalPhase) " · toque para detalhes" else ""
         val color = when (result.phase) {
@@ -1987,6 +1993,35 @@ class PremiumOpsActivity : Activity() {
         if (!::appStatusView.isInitialized) return
         appStatusView.text = message
         appStatusView.setTextColor(color)
+    }
+
+    private fun refreshVisibleAppUsage() {
+        val snapshot = latestTelemetry ?: return
+        appResourceViews.forEach { (packageName, view) ->
+            val app = appPackages.firstOrNull { it.packageName == packageName } ?: return@forEach
+            updateAppResourceText(view, app, snapshot.usageForPackage(packageName))
+        }
+        if (::appStatusView.isInitialized && appPackages.isNotEmpty()) {
+            appStatusView.text = "${appPackages.size} aplicativos · consumo atualizado ${clock(snapshot.capturedAtMs)}"
+            appStatusView.setTextColor(textSecondary)
+        }
+    }
+
+    private fun updateAppResourceText(view: TextView, snapshot: PackageSnapshot, usage: ProcessResourceUsage?) {
+        when {
+            usage != null && (usage.pssKb > 0L || usage.cpuPercent > 0.0) -> {
+                view.text = resourceUsageText(usage)
+                view.setTextColor(cyan)
+            }
+            snapshot.running -> {
+                view.text = "Rodando · consumo não apareceu nesta amostra"
+                view.setTextColor(textMuted)
+            }
+            else -> {
+                view.text = "Sem processo ativo detectado"
+                view.setTextColor(textMuted)
+            }
+        }
     }
 
     private fun criticalityPill(assessment: PackageAssessment): TextView {
