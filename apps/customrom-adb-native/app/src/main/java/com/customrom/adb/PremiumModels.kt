@@ -39,6 +39,9 @@ object PremiumSafetyPolicy {
         "wipe ",
         "pm uninstall",
         "pm clear",
+        "cmd package uninstall",
+        "service call",
+        " su ",
         "adb root",
         " remount",
         "mount -o rw",
@@ -60,10 +63,23 @@ object PremiumSafetyPolicy {
     private val reversibleTokens = listOf(
         "pm disable",
         "pm enable",
+        "pm grant",
+        "pm revoke",
+        "pm install",
+        "pm install-existing",
+        "pm suspend",
+        "pm unsuspend",
         "am force-stop",
         "am start",
         "am broadcast",
         "settings put",
+        "settings delete",
+        "settings reset",
+        "device_config put",
+        "device_config delete",
+        "device_config reset",
+        "appops set",
+        "cmd appops set",
         "svc ",
         "setprop ",
         "reboot",
@@ -110,15 +126,53 @@ object PremiumSafetyPolicy {
         "accservice"
     )
 
+    private val protectedDisruptionTokens = listOf(
+        "pm disable",
+        "pm uninstall",
+        "pm clear",
+        "pm grant",
+        "pm revoke",
+        "am force-stop",
+        "am broadcast",
+        "settings put",
+        "settings delete",
+        "setprop ",
+        " kill ",
+        "pkill ",
+        "killall "
+    )
+
+    private val stdoutRedirection = Regex("""(?<!\\d)>{1,2}\\s*(/[^\\s;&|]+)""")
+    private val teeRedirection = Regex("""\\btee(?:\\s+-a)?\\s+(/[^\\s;&|]+)""")
+    private val protectedWritePrefixes = listOf("/dev/", "/sys/", "/proc/sys/")
+
     fun classify(command: String): String {
         val collapsed = command
             .lowercase(Locale.ROOT)
             .replace(Regex("\\s+"), " ")
             .trim()
         val normalized = " $collapsed "
+
         if (destructiveTokens.any { normalized.contains(it) }) return "VERMELHO"
+
+        val writeTarget = fileWriteTarget(collapsed)
+        if (writeTarget != null && writeTarget != "/dev/null") {
+            if (protectedWritePrefixes.any { writeTarget.startsWith(it) }) return "VERMELHO"
+        }
+
+        val touchesProtectedSurface = protectedPackageTokens.any { normalized.contains(it) }
+        val disruptsProtectedSurface = protectedDisruptionTokens.any { normalized.contains(it) }
+        if (touchesProtectedSurface && disruptsProtectedSurface) return "VERMELHO"
+
+        if (writeTarget != null && writeTarget != "/dev/null") return "AMARELO"
         if (reversibleTokens.any { normalized.contains(it) }) return "AMARELO"
         return "VERDE"
+    }
+
+    private fun fileWriteTarget(command: String): String? {
+        stdoutRedirection.find(command)?.groupValues?.getOrNull(1)?.let { return it }
+        teeRedirection.find(command)?.groupValues?.getOrNull(1)?.let { return it }
+        return null
     }
 
     fun isProtectedPackage(packageName: String): Boolean {
