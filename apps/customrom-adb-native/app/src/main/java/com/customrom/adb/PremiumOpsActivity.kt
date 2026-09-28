@@ -830,6 +830,7 @@ class PremiumOpsActivity : Activity() {
 
     private fun inspectPackage(packageNameRaw: String) {
         val pkg = sanitizePackage(packageNameRaw) ?: return
+        setAppStatus("Analisando ${PackageIntelligence.friendlyName(pkg)} · package, processo, memória e serviços…", cyan)
         val command = "echo '=== PACKAGE ==='; dumpsys package $pkg 2>/dev/null | head -n 500; echo; echo '=== PID ==='; pidof $pkg 2>/dev/null; echo; echo '=== MEMINFO ==='; dumpsys meminfo $pkg 2>/dev/null | head -n 180; echo; echo '=== SERVICES MATCH ==='; dumpsys activity services 2>/dev/null | grep -i -B2 -A5 '$pkg' | head -n 160"
         executeOperation("Analisar ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = false) { outcome, result ->
             if (result.success) {
@@ -838,55 +839,80 @@ class PremiumOpsActivity : Activity() {
                 val updated = base.copy(metadata = outcome.stdout, running = outcome.stdout.contains("PID", true) && Regex("\b[0-9]{2,}\b").containsMatchIn(outcome.stdout))
                 if (index >= 0) appPackages[index] = updated else appPackages.add(updated)
                 refreshAppList()
+                setAppStatus("${PackageIntelligence.friendlyName(pkg)} analisado · evidência atualizada", success)
                 showAppDetail(updated)
-            } else showTechnicalResult(result, combineRaw(outcome))
+            } else {
+                setAppStatus("Falha ao analisar ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", danger)
+                showTechnicalResult(result, combineRaw(outcome))
+            }
         }
     }
 
     private fun forceStopPackage(snapshot: PackageSnapshot) {
         val pkg = sanitizePackage(snapshot.packageName) ?: return
+        setAppStatus("Preparando parada temporária de ${PackageIntelligence.friendlyName(pkg)}…", warning)
         executeOperation("Parar ${PackageIntelligence.friendlyName(pkg)}", "am force-stop --user 0 $pkg; echo 'Aplicativo interrompido temporariamente'", "AMARELO", showDialog = false) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "force-stop", if (snapshot.running) "running" else "unknown", "stopped", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, ""))
                 updatePackage(pkg) { it.copy(running = false) }
+                setAppStatus("${PackageIntelligence.friendlyName(pkg)} parado temporariamente · o app continua instalado", success)
                 appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
-            } else showTechnicalResult(result, combineRaw(outcome))
+            } else {
+                setAppStatus("Falha ao parar ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", danger)
+                showTechnicalResult(result, combineRaw(outcome))
+            }
         }
     }
 
     private fun disablePackage(snapshot: PackageSnapshot) {
         val pkg = sanitizePackage(snapshot.packageName) ?: return
+        setAppStatus("Preparando desativação reversível de ${PackageIntelligence.friendlyName(pkg)}…", warning)
         val command = "pm disable-user --user 0 $pkg >/dev/null 2>&1; RC=${'$'}?; if pm list packages -d 2>/dev/null | grep -Fxq 'package:$pkg'; then echo 'Package desativado para usuário 0'; exit 0; else echo 'Falha: package não aparece como desativado'; exit ${'$'}RC; fi"
         executeOperation("Desativar ${PackageIntelligence.friendlyName(pkg)}", command, "AMARELO", showDialog = false) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "disable", if (snapshot.disabled) "disabled" else "enabled", "disabled", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, "pm enable --user 0 $pkg"))
                 updatePackage(pkg) { it.copy(disabled = true, running = false) }
+                setAppStatus("${PackageIntelligence.friendlyName(pkg)} desativado · Restaurar permanece disponível no CUSTOMROM", success)
                 appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
-            } else showTechnicalResult(result, combineRaw(outcome))
+            } else {
+                setAppStatus("Falha ao desativar ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", danger)
+                showTechnicalResult(result, combineRaw(outcome))
+            }
         }
     }
 
     private fun enablePackage(snapshot: PackageSnapshot) {
         val pkg = sanitizePackage(snapshot.packageName) ?: return
+        setAppStatus("Restaurando ${PackageIntelligence.friendlyName(pkg)} para o usuário 0…", warning)
         val command = "pm enable --user 0 $pkg >/dev/null 2>&1; RC=${'$'}?; if pm list packages -d 2>/dev/null | grep -Fxq 'package:$pkg'; then echo 'Falha: package continua desativado'; exit 2; else echo 'Package ativo para usuário 0'; exit ${'$'}RC; fi"
         executeOperation("Ativar ${PackageIntelligence.friendlyName(pkg)}", command, "AMARELO", showDialog = false) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "enable", "disabled", "enabled", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, "pm disable-user --user 0 $pkg"))
                 updatePackage(pkg) { it.copy(disabled = false) }
+                setAppStatus("${PackageIntelligence.friendlyName(pkg)} ativo novamente", success)
                 appPackages.firstOrNull { it.packageName == pkg }?.let(::showAppDetail)
-            } else showTechnicalResult(result, combineRaw(outcome))
+            } else {
+                setAppStatus("Falha ao ativar ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", danger)
+                showTechnicalResult(result, combineRaw(outcome))
+            }
         }
     }
 
     private fun showPackageLog(packageNameRaw: String) {
         val pkg = sanitizePackage(packageNameRaw) ?: return
+        setAppStatus("Coletando logs recentes de ${PackageIntelligence.friendlyName(pkg)}…", cyan)
         val command = "PID=${'$'}(pidof $pkg 2>/dev/null | awk '{print ${'$'}1}'); if [ -n \"${'$'}PID\" ]; then logcat -d -v threadtime --pid=${'$'}PID -t 500 2>/dev/null || logcat -d -v threadtime -t 1200 2>/dev/null | grep -F '$pkg' | tail -n 500; else echo 'Package não está rodando; buscando referências recentes'; logcat -d -v threadtime -t 1600 2>/dev/null | grep -F '$pkg' | tail -n 500; fi"
-        executeOperation("Logs de ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = true) { _, _ -> }
+        executeOperation("Logs de ${PackageIntelligence.friendlyName(pkg)}", command, "VERDE", showDialog = true) { _, result ->
+            setAppStatus(if (result.success) "Logs de ${PackageIntelligence.friendlyName(pkg)} coletados · evidência técnica aberta" else "Falha ao coletar logs · ${result.detail.take(110)}", if (result.success) success else danger)
+        }
     }
 
     private fun launchPackage(packageNameRaw: String) {
         val pkg = sanitizePackage(packageNameRaw) ?: return
-        executeOperation("Abrir ${PackageIntelligence.friendlyName(pkg)} na TayTech", "monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>/dev/null", "AMARELO", showDialog = true) { _, _ -> }
+        setAppStatus("Preparando abertura de ${PackageIntelligence.friendlyName(pkg)} na TayTech…", warning)
+        executeOperation("Abrir ${PackageIntelligence.friendlyName(pkg)} na TayTech", "monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>/dev/null", "AMARELO", showDialog = true) { _, result ->
+            setAppStatus(if (result.success) "${PackageIntelligence.friendlyName(pkg)} recebeu o pedido de abertura" else "Falha ao abrir ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", if (result.success) success else danger)
+        }
     }
 
     private fun restorePackage(snapshot: PackageSnapshot) {
@@ -895,10 +921,14 @@ class PremiumOpsActivity : Activity() {
             toast("O CUSTOMROM não possui evidência de ter desativado este package")
             return
         }
+        setAppStatus("Restaurando alteração do CUSTOMROM em ${PackageIntelligence.friendlyName(pkg)}…", warning)
         executeOperation("Restaurar ${PackageIntelligence.friendlyName(pkg)}", "pm enable --user 0 $pkg", "AMARELO", showDialog = true) { outcome, result ->
             if (result.success) {
                 ledger.append(ChangeRecord(pkg, "restore", "disabled", "enabled", System.currentTimeMillis(), session?.id ?: "", outcome.exitCode, ""))
                 updatePackage(pkg) { it.copy(disabled = false) }
+                setAppStatus("${PackageIntelligence.friendlyName(pkg)} restaurado · estado anterior recuperado", success)
+            } else {
+                setAppStatus("Falha ao restaurar ${PackageIntelligence.friendlyName(pkg)} · ${result.detail.take(110)}", danger)
             }
         }
     }
