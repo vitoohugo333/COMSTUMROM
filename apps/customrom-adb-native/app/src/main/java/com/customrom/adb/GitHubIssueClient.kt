@@ -62,7 +62,7 @@ class GitHubIssueClient(
     override fun listOpenJobs(): List<RemoteGitHubIssue> {
         val response = request(
             method = "GET",
-            path = "/repos/${config.owner}/${config.repo}/issues?state=open&sort=created&direction=asc&per_page=50"
+            path = "/repos/${config.owner}/${config.repo}/issues?state=open&sort=created&direction=desc&per_page=50"
         )
         return parseIssues(response, config.titlePrefix)
     }
