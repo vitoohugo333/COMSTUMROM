@@ -28,6 +28,26 @@ class RemoteSafetyRegressionTest {
     }
 
     @Test
+    fun unknownRemoteShellIsConservativelyYellowWhileKnownInspectionStaysGreen() {
+        val registry = RemoteOperationRegistry()
+
+        val unknownMutation = registry.resolve(shellJob("vendorctl mutate-widget 1"))
+        val inspection = registry.resolve(shellJob("dumpsys package com.spotify.music"))
+
+        assertEquals("AMARELO", unknownMutation.risk)
+        assertEquals("VERDE", inspection.risk)
+    }
+
+    @Test
+    fun automotiveVendorMutationVerbIsRedEvenWithoutKnownAndroidPrimitive() {
+        val registry = RemoteOperationRegistry()
+
+        val mutation = registry.resolve(shellJob("cmd vehicle set cabin_mode 1", allowChanges = true))
+
+        assertEquals("VERMELHO", mutation.risk)
+    }
+
+    @Test
     fun packageRollbackOnlyRestoresAStateThatActuallyChanged() {
         val registry = RemoteOperationRegistry()
         val disable = registry.resolve(actionJob("package.disable", mapOf("package" to "com.spotify.music"), true))
