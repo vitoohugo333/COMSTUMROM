@@ -144,6 +144,47 @@ class RemoteOperationRegistryTest {
     }
 
     @Test
+    fun genericFileWriteIsYellowAndRequiresExplicitChanges() {
+        val resolved = registry.resolve(
+            shell("echo probe > /data/local/tmp/customrom-probe", allowChanges = true)
+        )
+
+        assertEquals("AMARELO", resolved.risk)
+        assertTrue(resolved.requiresAllowChanges)
+    }
+
+    @Test
+    fun directDeviceNodeWriteIsRed() {
+        val resolved = registry.resolve(
+            shell("echo 01 > /dev/can0", allowChanges = true)
+        )
+
+        assertEquals("VERMELHO", resolved.risk)
+    }
+
+    @Test
+    fun genericBinderServiceCallIsRed() {
+        val resolved = registry.resolve(
+            shell("service call vehicle 3 i32 1", allowChanges = true)
+        )
+
+        assertEquals("VERMELHO", resolved.risk)
+    }
+
+    @Test
+    fun automotiveBroadcastIsRedButReadOnlyInspectionStaysGreen() {
+        val active = registry.resolve(
+            shell("am broadcast -a com.vendor.mcu.SET_MODE --ei mode 1", allowChanges = true)
+        )
+        val inspect = registry.resolve(
+            shell("dumpsys package com.jancar.canbus")
+        )
+
+        assertEquals("VERMELHO", active.risk)
+        assertEquals("VERDE", inspect.risk)
+    }
+
+    @Test
     fun recipeRunUsesExistingRecipeAndLocalRisk() {
         val recipes = listOf(
             PremiumRecipe("cpu-known", "CPU conhecida", "VERDE", "top -n 1", "cpu.txt")
@@ -156,6 +197,16 @@ class RemoteOperationRegistryTest {
         assertEquals("top -n 1", resolved.command)
         assertEquals("VERDE", resolved.risk)
     }
+
+    private fun shell(command: String, allowChanges: Boolean = false): RemoteJob = RemoteJob(
+        schema = CustomromJobContract.SCHEMA,
+        requestId = "cr-20260927-shell",
+        target = "taytech-primary",
+        mode = RemoteJobMode.SHELL,
+        command = command,
+        timeoutSeconds = 60,
+        allowChanges = allowChanges
+    )
 
     private fun action(
         name: String,
