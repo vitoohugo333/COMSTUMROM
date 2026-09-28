@@ -1,4 +1,5 @@
 name: Build CUSTOMROM ADB native
+# Remote bridge regression gate.
 
 on:
   workflow_dispatch:
