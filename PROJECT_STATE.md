@@ -1,12 +1,21 @@
 # Estado oficial — CUSTOMROM ADB Remote Bridge
 
 **Atualizado em:** 2026-09-27/28 BRT  
-**Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
+**Linha de trabalho:** `main`  
 **Estado:** ponte GitHub Issues → S23 → ADB → TayTech concluída e verificada software-side; validação física S23 → TayTech pendente.  
 **Fonte validada:** `ea81947d3569ef909b7afef2114060f5b5162ac0`  
-**CI final:** run `36370490308` — validator PASS, 80 JVM tests PASS, Android build PASS, artifact upload PASS.  
+**CI final do código:** run `36370490308` — validator PASS, 80 JVM tests PASS, Android build PASS, artifact upload PASS.  
+**Verificação pós-integração em `main`:** run `36371306428` — validator PASS, suíte JVM PASS, Android build PASS, prova de ancestralidade PASS e limpeza de branches PASS.  
 **Notion sync:** PASS — checkpoint `3e98ee52-ac54-8136-a3b5-dc4e350a0ce5` em “CUSTOMROM TAYTECH — Central Oficial do Projeto”.  
 **Próximo passo:** instalar o APK verificado no S23 e executar validação física GREEN Issue → S23 → ADB → TayTech → receipt; depois uma única ação YELLOW reversível + rollback.
+
+## Integração em main
+
+- `main` foi avançada por fast-forward para a linha validada, sem divergência e sem merge commit artificial;
+- `refactor/customrom-adb-s23-premium` foi provada como totalmente contida em `main` e removida;
+- `refactor/customrom-adb-s23-premium-v6-work` era ancestral da linha premium, foi provada como totalmente contida em `main` e removida;
+- o workflow temporário usado para verificar `main` e limpar branches foi removido após concluir com sucesso;
+- autoridade remota atual: somente `main`.
 
 ## Ponte remota GitHub Issues
 
