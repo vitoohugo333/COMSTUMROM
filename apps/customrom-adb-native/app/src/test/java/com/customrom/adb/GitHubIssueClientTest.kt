@@ -1,5 +1,10 @@
 package com.customrom.adb
 
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.ArrayDeque
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -96,4 +101,40 @@ class GitHubIssueClientTest {
         assertEquals("taytech-primary", config.target)
         assertEquals("viluadmcontas2-dot", config.allowedAuthor)
     }
+    @Test
+    fun defaultPollingIsNearRealtimeWithoutAggressiveBusyLoop() {
+        assertEquals(5, GitHubControlConfig.defaults().pollSeconds)
+    }
+
+    @Test
+    fun conditionalPollingReusesCachedBodyOn304AndSendsEtag() {
+        val json = """[{"number":61,"title":"[CUSTOMROM JOB] console","body":"{}","html_url":"https://github.com/x/y/issues/61","user":{"login":"viluadmcontas2-dot"}}]"""
+        val first = FakeConnection(200, json, mapOf("ETag" to "\"etag-1\""))
+        val second = FakeConnection(304, "")
+        val queue = ArrayDeque(listOf(first, second))
+        val client = GitHubIssueClient(
+            config = GitHubControlConfig.defaults(),
+            tokenProvider = { "token-for-test" },
+            connectionFactory = { queue.removeFirst() }
+        )
+
+        assertEquals(1, client.listOpenJobs().size)
+        assertEquals(1, client.listOpenJobs().size)
+        assertEquals("\"etag-1\"", second.getRequestProperty("If-None-Match"))
+    }
+
+    private class FakeConnection(
+        private val status: Int,
+        private val payload: String,
+        private val responseHeaders: Map<String, String> = emptyMap()
+    ) : HttpURLConnection(URL("https://api.github.test")) {
+        override fun disconnect() = Unit
+        override fun usingProxy(): Boolean = false
+        override fun connect() = Unit
+        override fun getResponseCode(): Int = status
+        override fun getInputStream(): InputStream = ByteArrayInputStream(payload.toByteArray())
+        override fun getErrorStream(): InputStream? = ByteArrayInputStream(payload.toByteArray())
+        override fun getHeaderField(name: String?): String? = responseHeaders[name]
+    }
+
 }

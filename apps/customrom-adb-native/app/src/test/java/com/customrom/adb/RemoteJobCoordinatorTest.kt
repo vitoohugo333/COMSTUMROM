@@ -423,6 +423,70 @@ class RemoteJobCoordinatorTest {
         assertEquals(ReplayDecision.NEW, recovered.check("cr-20260927-0406", "digest-a"))
     }
 
+    @Test
+    fun consoleSequenceGapWaitsWithoutExecutingOrPublishing() {
+        val sessions = RemoteConsoleSessionStore(tempSessionFile())
+        val executor = FakeCommandPort()
+        val publisher = FakePublisher()
+        val coordinator = RemoteJobCoordinator(
+            config = GitHubControlConfig.defaults().copy(enabled = true),
+            registry = RemoteOperationRegistry(),
+            store = store(),
+            sessionStore = sessions,
+            commandPort = executor,
+            publisher = publisher
+        )
+
+        val result = coordinator.handle(sessionIssue("console-a", 2L, "cr-console-0202"))
+
+        assertEquals(RemoteHandleResult.BUSY, result)
+        assertTrue(executor.commands.isEmpty())
+        assertEquals(0, publisher.commentAttempts)
+    }
+
+    @Test
+    fun consoleAdvancesOnlyAfterReceiptIsVisibleToGpt() {
+        val sessions = RemoteConsoleSessionStore(tempSessionFile())
+        val jobs = store()
+        val executor = FakeCommandPort()
+        val publisher = FakePublisher(failComments = 1)
+        val coordinator = RemoteJobCoordinator(
+            config = GitHubControlConfig.defaults().copy(enabled = true),
+            registry = RemoteOperationRegistry(),
+            store = jobs,
+            sessionStore = sessions,
+            commandPort = executor,
+            publisher = publisher
+        )
+        val first = sessionIssue("console-a", 1L, "cr-console-0301")
+        val second = sessionIssue("console-a", 2L, "cr-console-0302")
+
+        assertEquals(RemoteHandleResult.STARTED, coordinator.handle(first))
+        assertEquals(0L, sessions.get("console-a")?.lastDeliveredSequence ?: 0L)
+        assertEquals(RemoteHandleResult.BUSY, coordinator.handle(second))
+        assertEquals(1, executor.commands.size)
+
+        assertEquals(RemoteHandleResult.REPLAYED, coordinator.handle(first))
+        assertEquals(1L, sessions.get("console-a")?.lastDeliveredSequence)
+        assertEquals(RemoteHandleResult.STARTED, coordinator.handle(second))
+        assertEquals(2L, sessions.get("console-a")?.lastDeliveredSequence)
+        assertEquals(2, executor.commands.size)
+        assertTrue(publisher.comments.last().contains("Sessão: console-a"))
+        assertTrue(publisher.comments.last().contains("Sequência: 2"))
+    }
+
+    private fun sessionIssue(sessionId: String, sequence: Long, requestId: String): RemoteGitHubIssue =
+        RemoteGitHubIssue(
+            number = sequence + 100,
+            title = "[CUSTOMROM JOB] " + sessionId + " #" + sequence,
+            body = """{"schema":"customrom.adb.job.v1","requestId":"$requestId","sessionId":"$sessionId","sequence":$sequence,"target":"taytech-primary","mode":"shell","command":"getprop ro.product.model","timeoutSeconds":30,"allowChanges":false}""",
+            authorLogin = "viluadmcontas2-dot",
+            htmlUrl = "https://github.com/viluadmcontas2-dot/AgentRed/issues/" + (sequence + 100)
+        )
+
+    private fun tempSessionFile(): File =
+        Files.createTempDirectory("customrom-console-coordinator").resolve("sessions.json").toFile()
+
     private fun coordinator(
         store: IssueJobStore,
         executor: FakeCommandPort,
