@@ -51,4 +51,7 @@ data class VerifiedRemoteChange(
     val previousState: String,
     val currentState: String,
     val outcome: RemoteShellOutcome
-)
+) {
+    val rollbackCommand: String
+        get() = operation.rollbackCommandFor(previousState)
+}
