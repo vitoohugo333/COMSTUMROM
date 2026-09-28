@@ -1,10 +1,39 @@
-# Estado oficial — CUSTOMROM ADB S23 Practical Operations V6.1
+# Estado oficial — CUSTOMROM ADB Remote Bridge
 
-**Atualizado em:** 2026-08-08 BRT  
+**Atualizado em:** 2026-09-27 BRT  
 **Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
-**Estado:** implementação, validador, build e artifacts PASS; validação física S23 → TayTech pendente.  
-**Fonte validada:** `d0fa9f0caafd089774b45f524e9a32b51c72e6d7`  
-**CI final:** run `31281894532`
+**Estado:** ponte GitHub Issues → S23 → ADB → TayTech concluída e verificada software-side; validação física S23 → TayTech pendente.  
+**Fonte validada:** `a8a6435d7b03acf4622ed02ad4d3bce1f802e5a7`  
+**CI final:** run `36364171239` — validator PASS, JVM unit tests PASS, Android build PASS, artifact upload PASS.  
+**Notion sync:** PASS — checkpoint `3e98ee52-ac54-8136-a3b5-dc4e350a0ce5` em “CUSTOMROM TAYTECH — Central Oficial do Projeto”.  
+**Próximo passo:** instalar o APK verificado no S23 e executar validação física GREEN Issue → S23 → ADB → TayTech → receipt; depois uma única ação YELLOW reversível + rollback.
+
+## Ponte remota GitHub Issues
+
+A topologia de controle remoto software-side está fechada:
+
+`GitHub Issue privada → CUSTOMROM no S23 → AdbRemoteController/Kadb existente → TayTech → receipt na mesma Issue`
+
+Contratos verificados:
+
+- schema estrito `customrom.adb.job.v1`;
+- autor, prefixo e alvo validados antes de claim;
+- token GitHub protegido por Android Keystore e nunca versionado/logado;
+- GREEN automático após admission; YELLOW exige `allowChanges=true`; VERMELHO remoto bloqueado;
+- `requestId` persistente impede replay de efeito e conflito de payload;
+- resultado terminal é persistido antes da publicação do receipt;
+- receipt publicado não é duplicado em polling posterior;
+- `UNCERTAIN` permanece aberto para reconciliação e não é repetido automaticamente;
+- shell remoto continua disponível, mas escrita genérica sobe para AMARELO e superfícies estruturais/automotivas ativas sobem para VERMELHO;
+- packages protegidos e owner-critical não passam pelo disable/force-stop remoto genérico;
+- rollback de package e animações é calculado a partir do estado realmente observado;
+- ChangeLedger recebe alterações remotas verificadas;
+- job remoto em CLAIMED/RUNNING bloqueia início de nova operação local.
+
+Artifact nativo verificado: `CUSTOMROM-ADB-S23-PREMIUM`  
+APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`  
+SHA-256: `c5a43317e2b341f1f9a9fcb44cf95c957ee4229875b7367d429942a5352f25d1`  
+Workflow: `36364171239`
 
 ## Topologia oficial
 
@@ -117,31 +146,23 @@ Não é necessário transferir manualmente o APK do Agent para a TayTech.
 
 ## Evidência de build final
 
-Artifact: `CUSTOMROM-ADB-S23-PRACTICAL-V6.1`
+### Bridge remoto — prova atual
 
-### APK principal S23
-
-`CUSTOMROM-ADB-S23-PRACTICAL-V6.1-debug.apk`
-
-SHA-256:
-`018bb78c27697f045e1a5706badebe5b8d83e1c2603d6e3f322185d55a5ea338`
-
-### APK Agent TayTech
-
-`CUSTOMROM-Agent-TayTech-debug.apk`
-
-SHA-256:
-`a24a5084555351c0d7aeca4b35f6a2620d60b4dad36c361ee06a24c9add05734`
-
-### Provas independentes
-
-- validator: PASS;
-- Android build: PASS;
-- source promotion: PASS;
+- source: `a8a6435d7b03acf4622ed02ad4d3bce1f802e5a7`;
+- native validator: PASS;
+- JVM unit tests: PASS;
+- Android debug build: PASS;
 - artifact upload: PASS;
-- ambos os APKs passaram no teste de integridade ZIP;
-- o Agent embutido no APK S23 tem exatamente o mesmo SHA-256 do Agent standalone;
-- `agent/build/` foi removido da fonte versionada e `agent/.gitignore` contém `/build/`.
+- artifact: `CUSTOMROM-ADB-S23-PREMIUM`;
+- APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
+- APK SHA-256: `c5a43317e2b341f1f9a9fcb44cf95c957ee4229875b7367d429942a5352f25d1`;
+- workflow: `36364171239`;
+- artifact id: `10947105718`;
+- artifact ZIP digest: `sha256:4b1c112293e9f9c9b20aecddd43176f91240f73a8592ecac6228e7115fc3f557`.
+
+### Base prática / companion
+
+O workflow prático `36364171238` também fechou com unit tests, Android build e upload PASS para `CUSTOMROM-ADB-S23-PRACTICAL-V6.1`. A prova canônica desta fotografia para o bridge remoto é o artifact nativo acima.
 
 ## Gate físico ainda aberto
 
