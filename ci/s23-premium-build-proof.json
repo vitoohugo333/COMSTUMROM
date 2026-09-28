@@ -1,14 +1,14 @@
 {
-  "status": "FAIL",
-  "validation": "failure",
+  "status": "PASS",
+  "validation": "success",
   "unit_tests": "success",
-  "android_build": "skipped",
-  "artifact": "",
-  "apk": "",
-  "apk_sha256": "",
+  "android_build": "success",
+  "artifact": "CUSTOMROM-ADB-S23-PREMIUM",
+  "apk": "CUSTOMROM-ADB-S23-PREMIUM-debug.apk",
+  "apk_sha256": "7c0945c1f89e99efa930b34e0f2de2e68492a91ab790278e36a8f9baae0cdcf6",
   "source_branch": "refactor/customrom-adb-s23-premium",
-  "source_commit": "66c362eb7a97fe8ed7a0dfbd9bf0dabf69aaa3b0",
-  "run_id": 36364516268,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36364516268",
-  "built_at_utc": "2026-09-28T01:05:59Z"
+  "source_commit": "77b366969e65d3bbcb0a5757717b397afeee92e2",
+  "run_id": 36365014912,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36365014912",
+  "built_at_utc": "2026-09-28T01:14:06Z"
 }
