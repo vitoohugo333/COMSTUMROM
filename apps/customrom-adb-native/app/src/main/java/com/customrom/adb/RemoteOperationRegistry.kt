@@ -253,7 +253,7 @@ class RemoteOperationRegistry(
 
     companion object {
         private val PACKAGE_PATTERN = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
-        private val REMOTE_SHELL_COMPOSITION = Regex("[;\\n\\r|&\x60]|\\$\\(")
+        private val REMOTE_SHELL_COMPOSITION = Regex("[;\\n\\r|&`]|\\$\\(")
         private val REMOTE_READ_ONLY_PREFIXES = listOf(
             "getprop",
             "dumpsys",
