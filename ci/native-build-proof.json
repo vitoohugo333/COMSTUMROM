@@ -1,14 +1,14 @@
 {
-  "status": "FAIL",
+  "status": "PASS",
   "validation": "success",
-  "unit_tests": "failure",
-  "android_build": "skipped",
-  "artifact": "",
-  "apk": "",
-  "apk_sha256": "",
+  "unit_tests": "success",
+  "android_build": "success",
+  "artifact": "CUSTOMROM-ADB-native",
+  "apk": "CUSTOMROM-ADB-native-debug.apk",
+  "apk_sha256": "b29bcb70815430832e044f83e1c1ca557ceb6ab4099f9dd81ab44ee539542cfd",
   "source_branch": "main",
-  "source_commit": "6beaef7db8b73ce2a98791b0c255d4db879b111b",
-  "run_id": 36428920278,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36428920278",
-  "built_at_utc": "2026-09-28T13:30:09Z"
+  "source_commit": "be0244dfc8314b1bd9d9de3b4abce0027f7e4c6f",
+  "run_id": 36429195437,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36429195437",
+  "built_at_utc": "2026-09-28T13:32:50Z"
 }
