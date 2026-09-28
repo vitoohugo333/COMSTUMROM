@@ -53,6 +53,7 @@ class PremiumOpsActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("customrom_adb", Context.MODE_PRIVATE) }
     private val ledger by lazy { ChangeLedger(this) }
     private val remoteCredentials by lazy { GitHubCredentialStore(this) }
+    private val remoteOperationGate = RemoteOperationGate()
     private lateinit var adb: AdbRemoteController
     private var remoteReceiver: GitHubIssueReceiver? = null
     private val remoteCoordinatorExecutor = Executors.newSingleThreadExecutor()
@@ -1041,6 +1042,10 @@ class PremiumOpsActivity : Activity() {
         showDialog: Boolean,
         callback: (RemoteShellOutcome, HumanOperationResult) -> Unit
     ) {
+        if (!remoteOperationGate.canStartLocal()) {
+            toast("Existe uma operação remota em andamento")
+            return
+        }
         if (activeTask?.isDone == false) {
             toast("Já existe uma operação em andamento")
             return
@@ -1155,7 +1160,10 @@ class PremiumOpsActivity : Activity() {
             store = IssueJobStore(File(filesDir, "customrom_remote_jobs.json")),
             commandPort = remoteCommandPort(),
             publisher = publisher,
-            onState = { state, title -> renderRemoteJobState(state, title) },
+            onState = { state, title ->
+                remoteOperationGate.onRemoteState(state)
+                renderRemoteJobState(state, title)
+            },
             onVerifiedChange = ::recordVerifiedRemoteChange
         )
         remoteReceiver = GitHubIssueReceiver(
@@ -1202,47 +1210,18 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun recordVerifiedRemoteChange(change: VerifiedRemoteChange) {
-        val pkg = change.job.args["package"]?.trim().orEmpty()
-        if (pkg.isEmpty()) return
-
-        val action = when (change.job.action) {
-            "package.disable" -> "disable"
-            "package.enable" -> "enable"
-            "package.forceStop" -> "force-stop"
-            else -> return
-        }
-
-        fun packageState(raw: String, fallback: String): String =
-            Regex("state=(enabled|disabled)").find(raw)?.groupValues?.getOrNull(1) ?: fallback
-
-        val previousState = when (action) {
-            "disable", "enable" -> packageState(change.previousState, "unknown")
-            "force-stop" -> if (change.previousState.isBlank()) "not-running" else "running"
-            else -> "unknown"
-        }
-        val currentState = when (action) {
-            "disable", "enable" -> packageState(change.currentState, if (action == "disable") "disabled" else "enabled")
-            "force-stop" -> if (change.currentState.isBlank()) "stopped" else "running"
-            else -> "unknown"
-        }
-
         runOnUiThread {
-            ledger.append(
-                ChangeRecord(
-                    packageName = pkg,
-                    action = action,
-                    previousState = previousState,
-                    newState = currentState,
-                    at = System.currentTimeMillis(),
-                    sessionId = session?.id ?: "",
-                    exitCode = change.outcome.exitCode,
-                    rollbackCommand = change.rollbackCommand
-                )
-            )
-            when (action) {
-                "disable" -> updatePackage(pkg) { it.copy(disabled = true, running = false) }
-                "enable" -> updatePackage(pkg) { it.copy(disabled = false) }
-                "force-stop" -> updatePackage(pkg) { it.copy(running = false) }
+            val record = RemoteChangeLedgerMapper.toRecord(
+                change = change,
+                sessionId = session?.id ?: "",
+                at = System.currentTimeMillis()
+            ) ?: return@runOnUiThread
+
+            ledger.append(record)
+            when (record.action) {
+                "disable" -> updatePackage(record.packageName) { it.copy(disabled = true, running = false) }
+                "enable" -> updatePackage(record.packageName) { it.copy(disabled = false) }
+                "force-stop" -> updatePackage(record.packageName) { it.copy(running = false) }
             }
             refreshLedger()
         }
