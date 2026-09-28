@@ -107,6 +107,24 @@ class GitHubIssueClientTest {
     }
 
     @Test
+    fun pollingFetchesNewestOpenIssuesFirstSoFreshJobsAreNotStarved() {
+        var requestedUrl = ""
+        val client = GitHubIssueClient(
+            config = GitHubControlConfig.defaults(),
+            tokenProvider = { "token-for-test" },
+            connectionFactory = { url ->
+                requestedUrl = url.toString()
+                FakeConnection(200, "[]")
+            }
+        )
+
+        client.listOpenJobs()
+
+        assertTrue(requestedUrl.contains("sort=created"))
+        assertTrue(requestedUrl.contains("direction=desc"))
+    }
+
+    @Test
     fun conditionalPollingReusesCachedBodyOn304AndSendsEtag() {
         val json = """[{"number":61,"title":"[CUSTOMROM JOB] console","body":"{}","html_url":"https://github.com/x/y/issues/61","user":{"login":"viluadmcontas2-dot"}}]"""
         val first = FakeConnection(200, json, mapOf("ETag" to "\"etag-1\""))
