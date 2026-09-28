@@ -9,6 +9,7 @@ data class ResolvedRemoteOperation(
     val preflightCommand: String = "",
     val verificationCommand: String = "",
     val rollbackCommand: String = "",
+    val rollbackPreviousMustContain: String = "",
     val verificationMustContain: List<String> = emptyList(),
     val verificationMustBeBlank: Boolean = false,
     val rollbackFromAnimationState: Boolean = false
@@ -20,19 +21,34 @@ data class ResolvedRemoteOperation(
     }
 
     fun rollbackCommandFor(previousState: String): String {
-        if (rollbackCommand.isNotBlank()) return rollbackCommand
-        if (!rollbackFromAnimationState) return ""
+        if (rollbackFromAnimationState) {
+            val values = Regex("(?m)^(window|transition|animator)=([^\\r\\n]+)$")
+                .findAll(previousState.trim())
+                .associate { it.groupValues[1] to it.groupValues[2].trim() }
+            val window = values["window"] ?: return ""
+            val transition = values["transition"] ?: return ""
+            val animator = values["animator"] ?: return ""
+            return listOf(
+                restoreSetting("window_animation_scale", window),
+                restoreSetting("transition_animation_scale", transition),
+                restoreSetting("animator_duration_scale", animator)
+            ).joinToString("; ")
+        }
 
-        val values = Regex("(?m)^(window|transition|animator)=([0-9]+(?:\\.[0-9]+)?)$")
-            .findAll(previousState.trim())
-            .associate { it.groupValues[1] to it.groupValues[2] }
-        val window = values["window"] ?: return ""
-        val transition = values["transition"] ?: return ""
-        val animator = values["animator"] ?: return ""
-        return "settings put global window_animation_scale $window; " +
-            "settings put global transition_animation_scale $transition; " +
-            "settings put global animator_duration_scale $animator"
+        if (rollbackCommand.isBlank()) return ""
+        if (rollbackPreviousMustContain.isNotBlank() && !previousState.contains(rollbackPreviousMustContain)) {
+            return ""
+        }
+        return rollbackCommand
     }
+
+    private fun restoreSetting(key: String, observed: String): String =
+        if (observed == "null") {
+            "settings delete global $key"
+        } else {
+            require(observed.matches(Regex("^[0-9]+(?:\\.[0-9]+)?$"))) { "Invalid observed setting value" }
+            "settings put global $key $observed"
+        }
 }
 
 class RemoteOperationRegistry(
@@ -101,6 +117,7 @@ class RemoteOperationRegistry(
                 preflight = packageStateCommand(pkg),
                 verification = packageStateCommand(pkg),
                 rollback = "pm enable $pkg",
+                rollbackPreviousMustContain = "state=enabled",
                 verificationMustContain = listOf("state=disabled")
             )
         }
@@ -112,6 +129,7 @@ class RemoteOperationRegistry(
                 preflight = packageStateCommand(pkg),
                 verification = packageStateCommand(pkg),
                 rollback = "pm disable-user --user 0 $pkg",
+                rollbackPreviousMustContain = "state=disabled",
                 verificationMustContain = listOf("state=enabled")
             )
         }
@@ -169,6 +187,7 @@ class RemoteOperationRegistry(
         preflight: String = "",
         verification: String = "",
         rollback: String = "",
+        rollbackPreviousMustContain: String = "",
         verificationMustContain: List<String> = emptyList(),
         verificationMustBeBlank: Boolean = false,
         rollbackFromAnimationState: Boolean = false
@@ -184,6 +203,7 @@ class RemoteOperationRegistry(
             preflightCommand = preflight,
             verificationCommand = verification,
             rollbackCommand = rollback,
+            rollbackPreviousMustContain = rollbackPreviousMustContain,
             verificationMustContain = verificationMustContain,
             verificationMustBeBlank = verificationMustBeBlank,
             rollbackFromAnimationState = rollbackFromAnimationState
