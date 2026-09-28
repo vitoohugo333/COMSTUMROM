@@ -28,7 +28,10 @@ class RemoteJobCoordinator(
         val admission = RemoteAdmissionPolicy.evaluate(issue, config)
         if (admission is RemoteAdmissionDecision.Rejected) {
             val receipt = rejectedReceipt("unknown", admission.reason)
-            runCatching { publisher.comment(issue.number, receipt) }
+            runCatching {
+            publisher.comment(issue.number, receipt)
+            publisher.close(issue.number)
+        }
             runCatching { publisher.close(issue.number) }
             return RemoteHandleResult.REJECTED
         }
@@ -44,7 +47,7 @@ class RemoteJobCoordinator(
                 if (stored != null && stored.receipt.isNotBlank()) {
                     runCatching {
                         publisher.comment(issue.number, stored.receipt)
-                        if (stored.state != RemoteJobState.UNCERTAIN) publisher.close(issue.number)
+                        publisher.close(issue.number)
                     }
                 }
                 return RemoteHandleResult.REPLAYED
@@ -103,6 +106,9 @@ class RemoteJobCoordinator(
         val accepted = commandPort.execute(operation.command, job.timeoutSeconds * 1000L) { outcome ->
             when {
                 outcome.transportError != null && operation.effectful -> {
+                    finishUncertain(issue, job, operation, outcome, previousState)
+                }
+                outcome.exitCode != 0 && operation.effectful -> {
                     finishUncertain(issue, job, operation, outcome, previousState)
                 }
                 outcome.transportError != null || outcome.exitCode != 0 -> {
