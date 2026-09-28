@@ -143,6 +143,8 @@ REQUIRED_REMOTE_UI_SIGNALS = [
     "GitHubControlConfig.defaults()",
     "RemoteJobCoordinator",
     "RemoteCommandPort",
+    "onVerifiedChange = ::recordVerifiedRemoteChange",
+    "private fun recordVerifiedRemoteChange",
     "Remoto",
 ]
 
