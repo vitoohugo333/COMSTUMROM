@@ -29,10 +29,9 @@ class RemoteJobCoordinator(
         if (admission is RemoteAdmissionDecision.Rejected) {
             val receipt = rejectedReceipt("unknown", admission.reason)
             runCatching {
-            publisher.comment(issue.number, receipt)
-            publisher.close(issue.number)
-        }
-            runCatching { publisher.close(issue.number) }
+                publisher.comment(issue.number, receipt)
+                publisher.close(issue.number)
+            }
             return RemoteHandleResult.REJECTED
         }
 
@@ -218,7 +217,10 @@ class RemoteJobCoordinator(
         store.markUncertain(job.requestId, receipt)
         activeRequestIds -= job.requestId
         onState(RemoteJobState.UNCERTAIN, operation.title)
-        runCatching { publisher.comment(issue.number, receipt) }
+        runCatching {
+            publisher.comment(issue.number, receipt)
+            publisher.close(issue.number)
+        }
     }
 
     private fun finishTerminal(
