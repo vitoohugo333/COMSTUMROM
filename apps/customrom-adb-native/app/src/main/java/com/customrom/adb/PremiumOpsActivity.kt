@@ -1236,7 +1236,7 @@ class PremiumOpsActivity : Activity() {
                     at = System.currentTimeMillis(),
                     sessionId = session?.id ?: "",
                     exitCode = change.outcome.exitCode,
-                    rollbackCommand = change.operation.rollbackCommand
+                    rollbackCommand = change.rollbackCommand
                 )
             )
             when (action) {
