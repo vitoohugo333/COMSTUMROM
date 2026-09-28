@@ -17,11 +17,11 @@ class RemoteSafetyRegressionTest {
     }
 
     @Test
-    fun protectedAutomotiveMutationThroughShellIsRedWhileInspectionStaysGreen() {
+    fun activeAutomotiveMutationThroughShellIsRedWhileInspectionStaysGreen() {
         val registry = RemoteOperationRegistry()
 
-        val mutation = registry.resolve(shellJob("pm disable-user --user 0 com.jancar.launcher", allowChanges = true))
-        val inspection = registry.resolve(shellJob("dumpsys package com.jancar.launcher"))
+        val mutation = registry.resolve(shellJob("pm disable-user --user 0 com.jancar.canbus", allowChanges = true))
+        val inspection = registry.resolve(shellJob("dumpsys package com.jancar.canbus"))
 
         assertEquals("VERMELHO", mutation.risk)
         assertEquals("VERDE", inspection.risk)
@@ -56,7 +56,7 @@ class RemoteSafetyRegressionTest {
     }
 
     @Test
-    fun uncertainReceiptRetryNeverReexecutesAdbAndClosesIssueAfterSuccessfulPublication() {
+    fun uncertainReceiptRetryNeverReexecutesAdbStaysOpenAndDoesNotSpamAfterPublication() {
         val store = IssueJobStore(tempFile())
         val port = FakeCommandPort(
             ArrayDeque(
@@ -91,7 +91,14 @@ class RemoteSafetyRegressionTest {
         assertEquals(RemoteHandleResult.REPLAYED, replay)
         assertEquals(adbCount, port.commands.size)
         assertEquals(2, publisher.commentAttempts)
-        assertEquals(listOf(issue.number), publisher.closed)
+        assertTrue(publisher.closed.isEmpty())
+
+        val third = coordinator.handle(issue)
+
+        assertEquals(RemoteHandleResult.REPLAYED, third)
+        assertEquals(adbCount, port.commands.size)
+        assertEquals(2, publisher.commentAttempts)
+        assertTrue(publisher.closed.isEmpty())
     }
 
     private fun shellJob(command: String, allowChanges: Boolean = false) = RemoteJob(
