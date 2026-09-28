@@ -142,8 +142,8 @@ object PremiumSafetyPolicy {
         "killall "
     )
 
-    private val stdoutRedirection = Regex("""(?<!\\d)>{1,2}\\s*(/[^\\s;&|]+)""")
-    private val teeRedirection = Regex("""\\btee(?:\\s+-a)?\\s+(/[^\\s;&|]+)""")
+    private val stdoutRedirection = Regex("""(?<!\d)>{1,2}\s*(/[^\s;&|]+)""")
+    private val teeRedirection = Regex("""\btee(?:\s+-a)?\s+(/[^\s;&|]+)""")
     private val protectedWritePrefixes = listOf("/dev/", "/sys/", "/proc/sys/")
 
     fun classify(command: String): String {
