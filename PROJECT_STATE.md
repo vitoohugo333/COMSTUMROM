@@ -2,12 +2,12 @@
 
 **Atualizado em:** 2026-09-27/28 BRT  
 **Linha de trabalho:** `main`  
-**Estado:** GPT Remote Console concluído e verificado software-side em `main`; validação física S23 → TayTech pendente.  
-**Fonte validada:** `9e62e1e3b4d07a7589c8ca47c1b0113fd31f55c0`  
-**CI final do código:** run `36373950231` — validator PASS, suíte JVM PASS (`91` testes), Android build PASS, artifact upload PASS.  
-**CI autônoma da mesma fonte:** run `36373950324` — PASS.  
+**Estado:** GPT Remote Console + Premium Operational Truth Pass concluídos e verificados software-side em `main`; validação física S23 → TayTech pendente.  
+**Fonte validada:** `b5e5f6b1e6cc85e593936a747c13f3e3b8cb3adc`  
+**CI final do código:** run `36432572784` — validator PASS, suíte JVM PASS, Android build PASS, artifact upload PASS, build-proof PASS.  
+**CI autônoma da mesma fonte:** run `36432572961` — PASS.  
 **Notion sync:** PASS — checkpoint `3e98ee52-ac54-8136-a3b5-dc4e350a0ce5` em “CUSTOMROM TAYTECH — Central Oficial do Projeto”.  
-**Próximo passo:** instalar o APK final no S23 e comprovar fisicamente uma sessão `sessionId` com `sequence=1 → receipt → sequence=2`; depois validar uma única ação YELLOW reversível + rollback.
+**Próximo passo:** instalar o APK premium final no S23, validar visualmente telemetria/Apps/feedback na TayTech real e retomar o smoke test #1318; depois validar `sequence=2` e uma única ação YELLOW reversível + rollback.
 
 ## Integração em main
 
@@ -16,6 +16,46 @@
 - `refactor/customrom-adb-s23-premium-v6-work` era ancestral da linha premium, foi provada como totalmente contida em `main` e removida;
 - o workflow temporário usado para verificar `main` e limpar branches foi removido após concluir com sucesso;
 - autoridade remota atual: somente `main`.
+
+## Premium Operational Truth Pass — 28/09/2026
+
+A crítica física do proprietário mostrou que o app tinha motor funcional, mas ainda não comunicava estado, consequência e contexto com a qualidade exigida pelos blueprints CUSTOMROM + Omega Dev. O passe foi tratado como correção sistêmica, não como remendo de três telas.
+
+Entregue e verificado:
+
+- **Saúde viva da TayTech** em Comandos, sem exigir executar receita: RAM usada/total/disponível, CPU amostrada, load 1m, horário da amostra, barras e ranking dos maiores consumidores de RAM/CPU;
+- detalhe didático explica PSS, por que a soma dos apps não precisa fechar o total de RAM e mantém evidência técnica sob demanda;
+- coleta live passa pelo `AdbRemoteController`, é somente leitura e não compete com operação local/remota já ativa;
+- **Apps** agora têm filtros com seleção visual persistente + contagem real por estado;
+- lista de Apps mostra `RODANDO`, `DESATIVADO`, `ATIVO`, `ALTERADO`, criticidade e RAM/CPU atribuídas quando observadas;
+- detalhe de app mostra estado e consumo da última amostra antes das ações;
+- inventário é carregado automaticamente quando Apps abre conectado, com feedback local de carregando/sucesso/falha;
+- analisar, parar, desativar, ativar, restaurar, coletar logs e abrir app comunicam preparação, sucesso ou falha no próprio contexto;
+- Terminal mostra `Recebido`, muda botão para `Executando…`, bloqueia entrada durante execução e restaura o estado ao terminar;
+- banner operacional usa fases explícitas `AGUARDANDO / EXECUTANDO / CONCLUÍDO / FALHA / INTERROMPIDO`;
+- toque recebeu feedback visual/háptico curto sem animação pesada;
+- atualização live de Apps é **in-place**: não reconstrói a lista a cada tick e não relê o ChangeLedger para cada linha;
+- detecção `running` usa nome de processo exato / processo-filho, evitando falso positivo por substring;
+- atalhos de Apps deixaram de disparar carga duplicada;
+- top status do Console expõe estado legível além do ponto verde;
+- validator fixa LiveTelemetry, AppInventoryProjection, seleção de filtro, uso por app, feedback explícito e atualização in-place como contratos obrigatórios.
+
+### Evidência desta fotografia
+
+- source testado: `b5e5f6b1e6cc85e593936a747c13f3e3b8cb3adc`;
+- workflow nativo: `36432572784` — **SUCCESS**;
+- CI autônoma: `36432572961` — **SUCCESS**;
+- validator: **PASS**;
+- JVM unit suite: **PASS**;
+- Android debug APK: **PASS**;
+- artifact upload: **PASS**;
+- build-proof: **PASS**;
+- artifact: `CUSTOMROM-ADB-native`;
+- artifact id: `10973659215`;
+- APK: `CUSTOMROM-ADB-native-debug.apk`;
+- APK SHA-256: `91bc9bb554d278e311c4353287c58254a0f6846af4c70f67b06ee7761840a3f9`;
+- artifact ZIP digest: `sha256:7273d8934b9a150610361b9aa3494ecff1837398512e90da15e44a60ddb4018f`;
+- revisão independente encontrou e corrigiu carga duplicada de inventário, detecção de processo por substring, reconstrução completa da lista a cada tick e corrida recorrente do commit de build-proof.
 
 ## GPT Remote Console
 
@@ -64,8 +104,8 @@ Contratos verificados:
 
 Artifact nativo verificado: `CUSTOMROM-ADB-native`  
 APK: `CUSTOMROM-ADB-native-debug.apk`  
-SHA-256: `139f5a314a995183f4b51130b10113ef325a0a025e8c9167fea0d5de626c0c78`  
-Workflow: `36373950231`
+SHA-256: `91bc9bb554d278e311c4353287c58254a0f6846af4c70f67b06ee7761840a3f9`  
+Workflow: `36432572784`
 
 ## Topologia oficial
 
