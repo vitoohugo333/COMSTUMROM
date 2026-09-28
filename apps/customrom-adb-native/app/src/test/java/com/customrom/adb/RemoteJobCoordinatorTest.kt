@@ -330,6 +330,37 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun animationChangeReceiptCarriesRollbackFromObservedPreviousState() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("window=1.0\ntransition=0.5\nanimator=1.0"),
+                    ok("updated"),
+                    ok("window=0.0\ntransition=0.0\nanimator=0.0")
+                )
+            )
+        )
+        val coordinator = coordinator(store, executor, FakePublisher())
+
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0412",
+                action = "settings.animations",
+                args = """{"enabled":false}""",
+                allowChanges = true
+            )
+        )
+
+        val receipt = store.get("cr-20260927-0412")?.receipt.orEmpty()
+        assertEquals(RemoteJobState.COMPLETED, store.get("cr-20260927-0412")?.state)
+        assertTrue(receipt.contains("Rollback: disponível"))
+        assertTrue(receipt.contains("window_animation_scale 1.0"))
+        assertTrue(receipt.contains("transition_animation_scale 0.5"))
+        assertTrue(receipt.contains("animator_duration_scale 1.0"))
+    }
+
+    @Test
     fun busyCommandPortDefersIssueWithoutConsumingIt() {
         val store = store()
         val executor = FakeCommandPort().apply { available = false }
