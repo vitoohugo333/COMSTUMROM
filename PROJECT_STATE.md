@@ -1,13 +1,13 @@
-# Estado oficial — CUSTOMROM ADB Remote Bridge
+# Estado oficial — CUSTOMROM GPT Remote Console
 
 **Atualizado em:** 2026-09-27/28 BRT  
 **Linha de trabalho:** `main`  
-**Estado:** ponte GitHub Issues → S23 → ADB → TayTech concluída e verificada software-side; validação física S23 → TayTech pendente.  
-**Fonte validada:** `ea81947d3569ef909b7afef2114060f5b5162ac0`  
-**CI final do código:** run `36370490308` — validator PASS, 80 JVM tests PASS, Android build PASS, artifact upload PASS.  
-**Verificação pós-integração em `main`:** run `36371306428` — validator PASS, suíte JVM PASS, Android build PASS, prova de ancestralidade PASS e limpeza de branches PASS.  
+**Estado:** GPT Remote Console concluído e verificado software-side em `main`; validação física S23 → TayTech pendente.  
+**Fonte validada:** `9e62e1e3b4d07a7589c8ca47c1b0113fd31f55c0`  
+**CI final do código:** run `36373950231` — validator PASS, suíte JVM PASS (`91` testes), Android build PASS, artifact upload PASS.  
+**CI autônoma da mesma fonte:** run `36373950324` — PASS.  
 **Notion sync:** PASS — checkpoint `3e98ee52-ac54-8136-a3b5-dc4e350a0ce5` em “CUSTOMROM TAYTECH — Central Oficial do Projeto”.  
-**Próximo passo:** instalar o APK verificado no S23 e executar validação física GREEN Issue → S23 → ADB → TayTech → receipt; depois uma única ação YELLOW reversível + rollback.
+**Próximo passo:** instalar o APK final no S23 e comprovar fisicamente uma sessão `sessionId` com `sequence=1 → receipt → sequence=2`; depois validar uma única ação YELLOW reversível + rollback.
 
 ## Integração em main
 
@@ -16,6 +16,27 @@
 - `refactor/customrom-adb-s23-premium-v6-work` era ancestral da linha premium, foi provada como totalmente contida em `main` e removida;
 - o workflow temporário usado para verificar `main` e limpar branches foi removido após concluir com sucesso;
 - autoridade remota atual: somente `main`.
+
+## GPT Remote Console
+
+O CUSTOMROM agora suporta um console operacional persistente para o GPT sem backend novo e sem LLM embarcado:
+
+`GPT → GitHub Issues → S23/CUSTOMROM → AdbRemoteController/Kadb → TayTech → receipt → GPT`
+
+Contratos verificados:
+
+- cada comando continua sendo uma Issue `[CUSTOMROM JOB]`, preservando compatibilidade com jobs antigos;
+- `requestId` continua sendo a identidade de idempotência e anti-replay;
+- jobs de console podem adicionar `sessionId` + `sequence` para manter ordem causal entre comandos;
+- uma sequência futura aguarda até o receipt da sequência anterior estar realmente publicado no GitHub;
+- gaps de sequência não executam nem consomem o job;
+- sequência stale com outro `requestId` é rejeitada, recebe receipt e fecha sem avançar a sessão;
+- o session store é persistente e não descarta silenciosamente sessões antigas;
+- polling padrão do console é `5 s`, com `ETag` / `If-None-Match` e body cacheado em `304 Not Modified`;
+- receipts de console mostram sessão e sequência;
+- jobs legados sem `sessionId` continuam com a semântica anterior;
+- `GREEN / AMARELO / VERMELHO`, Keystore, rollback, proteção automotiva e `UNCERTAIN` continuam sendo autoridades locais;
+- a UI trata a capacidade como **CONSOLE**, sem criar um destino GitHub na navegação.
 
 ## Ponte remota GitHub Issues
 
@@ -41,10 +62,10 @@ Contratos verificados:
 - ChangeLedger recebe alterações remotas verificadas;
 - job remoto em CLAIMED/RUNNING bloqueia início de nova operação local.
 
-Artifact nativo verificado: `CUSTOMROM-ADB-S23-PREMIUM`  
-APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`  
-SHA-256: `7bf527d84d296899ba544d7d134d24b95e6a7678ef757d12e74a43b3a6649110`  
-Workflow: `36370490308`
+Artifact nativo verificado: `CUSTOMROM-ADB-native`  
+APK: `CUSTOMROM-ADB-native-debug.apk`  
+SHA-256: `139f5a314a995183f4b51130b10113ef325a0a025e8c9167fea0d5de626c0c78`  
+Workflow: `36373950231`
 
 ## Topologia oficial
 
@@ -52,7 +73,7 @@ O **Galaxy S23 é o controlador**. A **TayTech é o alvo remoto** por ADB/Wi‑F
 
 A regra operacional é:
 
-`INTENÇÃO HUMANA → COLETA ÚNICA → INTERPRETAÇÃO → AÇÃO NO PRÓPRIO APP → VERIFICAÇÃO → HISTÓRICO/ROLLBACK`
+`INTENÇÃO HUMANA/GPT → ISSUE ORDENADA → ADB → EVIDÊNCIA → RECEIPT → PRÓXIMA DECISÃO → HISTÓRICO/ROLLBACK`
 
 Terminal serve como bancada de descoberta; rotina útil deve virar fluxo do CUSTOMROM.
 
@@ -147,8 +168,8 @@ Não é necessário transferir manualmente o APK do Agent para a TayTech.
 ## Segurança e rollback
 
 - nenhuma ação automotiva destrutiva automática;
-- nenhuma alteração de `main`;
-- nenhum merge/release nesta fotografia;
+- `main` é a autoridade remota única e toda alteração desta fotografia foi submetida a TDD + CI antes do fechamento;
+- nenhum release/flash foi executado nesta fotografia;
 - force-stop/disable/enable continuam explícitos;
 - ações AMARELAS exigem confirmação;
 - `pm disable-user --user 0` mantém rollback por `pm enable --user 0`;
@@ -158,20 +179,24 @@ Não é necessário transferir manualmente o APK do Agent para a TayTech.
 
 ## Evidência de build final
 
-### Bridge remoto — prova atual
+### GPT Remote Console — prova atual
 
-- source: `ea81947d3569ef909b7afef2114060f5b5162ac0`;
+- source: `9e62e1e3b4d07a7589c8ca47c1b0113fd31f55c0`;
 - native validator: PASS;
-- JVM unit tests: PASS (`80` testes na suíte final);
+- JVM unit tests: PASS (`91` testes na suíte final);
 - Android debug build: PASS;
 - artifact upload: PASS;
-- artifact: `CUSTOMROM-ADB-S23-PREMIUM`;
-- APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
-- APK SHA-256: `7bf527d84d296899ba544d7d134d24b95e6a7678ef757d12e74a43b3a6649110`;
-- workflow: `36370490308`;
-- artifact id: `10949236307`;
-- artifact ZIP digest: `sha256:98c580032c48faea37056c6d6b100a28d506113a2d1d94ae3b841593ac2db1b3`;
-- revisão final: RED reproduzido em `RemoteSafetyRegressionTest`, correção aplicada e suíte/build final GREEN.
+- CI autônoma da mesma fonte: PASS;
+- workflow nativo: `36373950231`;
+- workflow autônomo: `36373950324`;
+- artifact: `CUSTOMROM-ADB-native`;
+- APK: `CUSTOMROM-ADB-native-debug.apk`;
+- APK SHA-256: `139f5a314a995183f4b51130b10113ef325a0a025e8c9167fea0d5de626c0c78`;
+- artifact id: `10950012641`;
+- artifact ZIP digest: `sha256:7f15948de9a9780d251352dea7902b6193b72c471ba6c2453b95977df9412b53`;
+- TDD inicial: RED por capacidades ausentes de sessão/ETag → GREEN;
+- revisão independente: RED final `91 tests completed, 2 failed` para retenção >200 sessões e stale sequence → correção → mesma suíte GREEN + APK GREEN.
+
 
 ### Base prática / companion
 
@@ -179,20 +204,20 @@ O workflow prático `36364171238` também fechou com unit tests, Android build e
 
 ## Gate físico ainda aberto
 
-CI não prova comportamento da ROM real.
+CI não prova comportamento do aparelho real.
 
-Próxima validação no aparelho:
+Validação física necessária:
 
-1. instalar o APK V6.1 no S23;
-2. conectar à TayTech normalmente;
-3. executar **ADB após reinício**;
-4. se o app indicar Agent ausente, usar **Instalar CUSTOMROM Agent** no próprio fluxo;
-5. confirmar o estado apresentado;
-6. reiniciar a TayTech;
-7. observar se Wireless ADB volta e se o S23 reconecta por `:5555` ou mDNS;
-8. validar Smart Launcher, câmera, CAN, áudio e Bluetooth sem regressões.
+1. instalar o APK `CUSTOMROM-ADB-native-debug.apk` no S23;
+2. abrir o CUSTOMROM e habilitar **CONSOLE** com a credencial fine-grained do repositório privado;
+3. confirmar a conexão ADB real S23 → TayTech;
+4. emitir um job GREEN com `sessionId=<sessão>` e `sequence=1`;
+5. comprovar execução na TayTech e receipt na mesma Issue;
+6. somente após o receipt, emitir `sequence=2` da mesma sessão e comprovar a ordem causal;
+7. fechar com uma única operação YELLOW reversível, baseline anterior, verificação posterior e rollback;
+8. validar funções automotivas aplicáveis sem regressão.
 
-Até esse teste, o status correto é **Aguardando validação física**.
+Até esse teste, o status correto é **Software-side PASS · validação física PENDENTE**.
 
 ## Histórico
 
