@@ -217,8 +217,10 @@ class RemoteOperationRegistry(
     }
 
     private fun requireNotProtectedForDisruption(pkg: String) {
-        require(!PremiumSafetyPolicy.isProtectedPackage(pkg)) {
-            "Protected automotive package cannot be stopped or disabled remotely"
+        val assessment = PackageIntelligence.assess(PackageSnapshot(packageName = pkg))
+        val lacksRequiredHomePreflight = pkg == "com.jancar.launcher"
+        require(assessment.criticality != PackageCriticality.PROTECTED && !lacksRequiredHomePreflight) {
+            "Protected or owner-critical package cannot be stopped or disabled by the generic remote action"
         }
     }
 

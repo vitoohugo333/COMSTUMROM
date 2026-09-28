@@ -42,13 +42,7 @@ class RemoteJobCoordinator(
         when (store.check(job.requestId, digest)) {
             ReplayDecision.CONFLICT -> return reject(issue, job, digest, "requestId reutilizado com contrato diferente")
             ReplayDecision.REUSE_TERMINAL, ReplayDecision.UNCERTAIN -> {
-                val stored = store.get(job.requestId)
-                if (stored != null && stored.receipt.isNotBlank()) {
-                    runCatching {
-                        publisher.comment(issue.number, stored.receipt)
-                        publisher.close(issue.number)
-                    }
-                }
+                store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
                 return RemoteHandleResult.REPLAYED
             }
             ReplayDecision.IN_PROGRESS -> return RemoteHandleResult.BUSY
@@ -217,10 +211,7 @@ class RemoteJobCoordinator(
         store.markUncertain(job.requestId, receipt)
         activeRequestIds -= job.requestId
         onState(RemoteJobState.UNCERTAIN, operation.title)
-        runCatching {
-            publisher.comment(issue.number, receipt)
-            publisher.close(issue.number)
-        }
+        store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
     }
 
     private fun finishTerminal(
@@ -255,10 +246,7 @@ class RemoteJobCoordinator(
                 )
             }
         }
-        runCatching {
-            publisher.comment(issue.number, receipt)
-            publisher.close(issue.number)
-        }
+        store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
     }
 
     private fun reject(issue: RemoteGitHubIssue, job: RemoteJob, digest: String, reason: String): RemoteHandleResult {
@@ -266,10 +254,7 @@ class RemoteJobCoordinator(
         val receipt = rejectedReceipt(job.requestId, reason)
         store.markTerminal(job.requestId, RemoteJobState.REJECTED, receipt)
         onState(RemoteJobState.REJECTED, reason)
-        runCatching {
-            publisher.comment(issue.number, receipt)
-            publisher.close(issue.number)
-        }
+        store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
         return RemoteHandleResult.REJECTED
     }
 
@@ -284,6 +269,22 @@ class RemoteJobCoordinator(
         val outcome = RemoteShellOutcome("", "", -1, 0, IllegalStateException(reason))
         finishTerminal(issue, job, operation, outcome, RemoteJobState.FAILED)
         return RemoteHandleResult.REJECTED
+    }
+
+    private fun publishStoredReceipt(issue: RemoteGitHubIssue, stored: StoredRemoteJob) {
+        var current = stored
+        if (current.receipt.isBlank()) return
+
+        if (!current.receiptPublished) {
+            val published = runCatching { publisher.comment(issue.number, current.receipt) }.isSuccess
+            if (!published) return
+            store.markReceiptPublished(current.requestId)
+            current = store.get(current.requestId) ?: current.copy(receiptPublished = true)
+        }
+
+        if (current.state != RemoteJobState.UNCERTAIN) {
+            runCatching { publisher.close(issue.number) }
+        }
     }
 
     private fun receiptData(

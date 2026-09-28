@@ -41,6 +41,7 @@ data class StoredRemoteJob(
     val state: RemoteJobState,
     val effectful: Boolean,
     val receipt: String = "",
+    val receiptPublished: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
 

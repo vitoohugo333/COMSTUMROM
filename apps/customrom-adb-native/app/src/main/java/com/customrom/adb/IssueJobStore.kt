@@ -64,6 +64,15 @@ class IssueJobStore(private val file: File) {
     }
 
     @Synchronized
+    fun markReceiptPublished(requestId: String) {
+        val current = readAll().lastOrNull { it.requestId == requestId }
+            ?: throw IllegalStateException("Unknown requestId: $requestId")
+        if (!current.receiptPublished) {
+            upsert(current.copy(receiptPublished = true, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    @Synchronized
     fun list(): List<StoredRemoteJob> = readAll()
 
     private fun transition(requestId: String, state: RemoteJobState, receipt: String? = null) {
@@ -73,6 +82,7 @@ class IssueJobStore(private val file: File) {
             current.copy(
                 state = state,
                 receipt = receipt ?: current.receipt,
+                receiptPublished = if (receipt != null && receipt != current.receipt) false else current.receiptPublished,
                 updatedAt = System.currentTimeMillis()
             )
         )
@@ -114,6 +124,7 @@ class IssueJobStore(private val file: File) {
                             state = RemoteJobState.valueOf(item.getString("state")),
                             effectful = item.optBoolean("effectful", false),
                             receipt = item.optString("receipt", ""),
+                            receiptPublished = item.optBoolean("receiptPublished", false),
                             updatedAt = item.optLong("updatedAt", 0L)
                         )
                     )
@@ -136,6 +147,7 @@ class IssueJobStore(private val file: File) {
                     put("state", record.state.name)
                     put("effectful", record.effectful)
                     put("receipt", record.receipt)
+                    put("receiptPublished", record.receiptPublished)
                     put("updatedAt", record.updatedAt)
                 }
             )
