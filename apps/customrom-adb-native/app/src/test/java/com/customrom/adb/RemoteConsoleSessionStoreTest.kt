@@ -33,6 +33,28 @@ class RemoteConsoleSessionStoreTest {
         assertEquals(ConsoleSequenceDecision.WAIT, recovered.evaluate(job("console-a", 3L, "req-3")))
     }
 
+    @Test
+    fun sessionHistoryDoesNotSilentlyForgetOlderSessions() {
+        val file = tempFile()
+        val store = RemoteConsoleSessionStore(file)
+        for (index in 1..201) {
+            store.markDelivered(
+                sessionId = "console-" + index,
+                sequence = 1L,
+                requestId = "req-" + index,
+                state = RemoteJobState.COMPLETED
+            )
+        }
+
+        val recovered = RemoteConsoleSessionStore(file)
+
+        assertEquals(1L, recovered.get("console-1")?.lastDeliveredSequence)
+        assertEquals(
+            ConsoleSequenceDecision.REJECT_STALE,
+            recovered.evaluate(job("console-1", 1L, "different-request"))
+        )
+    }
+
     private fun job(sessionId: String, sequence: Long, requestId: String) = RemoteJob(
         schema = CustomromJobContract.SCHEMA,
         requestId = requestId,

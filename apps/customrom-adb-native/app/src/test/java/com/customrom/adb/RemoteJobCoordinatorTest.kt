@@ -475,6 +475,32 @@ class RemoteJobCoordinatorTest {
         assertTrue(publisher.comments.last().contains("Sequência: 2"))
     }
 
+    @Test
+    fun staleSequenceWithDifferentRequestIsRejectedClosedAndDoesNotAdvanceSession() {
+        val sessions = RemoteConsoleSessionStore(tempSessionFile())
+        sessions.markDelivered("console-stale", 1L, "original-request", RemoteJobState.COMPLETED)
+        val publisher = FakePublisher()
+        val executor = FakeCommandPort()
+        val coordinator = RemoteJobCoordinator(
+            config = GitHubControlConfig.defaults().copy(enabled = true),
+            registry = RemoteOperationRegistry(),
+            store = store(),
+            sessionStore = sessions,
+            commandPort = executor,
+            publisher = publisher
+        )
+        val duplicate = sessionIssue("console-stale", 1L, "different-request")
+
+        val result = coordinator.handle(duplicate)
+
+        assertEquals(RemoteHandleResult.REJECTED, result)
+        assertTrue(executor.commands.isEmpty())
+        assertEquals(listOf(duplicate.number), publisher.closed)
+        assertEquals(1L, sessions.get("console-stale")?.lastDeliveredSequence)
+        assertTrue(publisher.comments.single().contains("Sessão: console-stale"))
+        assertTrue(publisher.comments.single().contains("Sequência: 1"))
+    }
+
     private fun sessionIssue(sessionId: String, sequence: Long, requestId: String): RemoteGitHubIssue =
         RemoteGitHubIssue(
             number = sequence + 100,
