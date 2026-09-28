@@ -40,6 +40,17 @@ class IssueJobStoreTest {
     }
 
     @Test
+    fun corruptReplayStoreFailsClosedInsteadOfTreatingJobAsNew() {
+        val file = tempFile()
+        file.parentFile?.mkdirs()
+        file.writeText("{not-valid-json", Charsets.UTF_8)
+
+        val store = IssueJobStore(file)
+
+        assertEquals(ReplayDecision.UNCERTAIN, store.check("cr-20260927-0190", "digest-new"))
+    }
+
+    @Test
     fun terminalReceiptSurvivesProcessRestart() {
         val file = tempFile()
         IssueJobStore(file).apply {
