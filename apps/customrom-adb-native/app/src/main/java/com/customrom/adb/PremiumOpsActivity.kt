@@ -15,6 +15,8 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.text.Editable
 import android.text.InputType
@@ -30,6 +32,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
@@ -61,6 +64,11 @@ class PremiumOpsActivity : Activity() {
     private val recipes = mutableListOf<PremiumRecipe>()
     private var session: PremiumSession? = null
     private var activeTask: Future<*>? = null
+    private var telemetryTask: Future<*>? = null
+    private val telemetryHandler = Handler(Looper.getMainLooper())
+    private var latestTelemetry: LiveTelemetrySnapshot? = null
+    private var latestTelemetryRaw = ""
+    private var connectionReady = false
     private var currentScreen = "commands"
     private var lastRawOutput = ""
     private var latestHumanResult: HumanOperationResult? = null
@@ -84,6 +92,15 @@ class PremiumOpsActivity : Activity() {
     private lateinit var appSearch: EditText
     private lateinit var appListHost: LinearLayout
     private lateinit var appStatusView: TextView
+    private lateinit var liveRamValue: TextView
+    private lateinit var liveRamDetail: TextView
+    private lateinit var liveRamBar: ProgressBar
+    private lateinit var liveCpuValue: TextView
+    private lateinit var liveCpuDetail: TextView
+    private lateinit var liveCpuBar: ProgressBar
+    private lateinit var liveHealthFreshness: TextView
+    private lateinit var liveMemoryConsumersHost: LinearLayout
+    private lateinit var liveCpuConsumersHost: LinearLayout
     private lateinit var diagnosticSummaryView: TextView
     private lateinit var diagnosticRawView: TextView
     private lateinit var diagnosticActionsHost: LinearLayout
@@ -118,9 +135,12 @@ class PremiumOpsActivity : Activity() {
         setContentView(buildUi())
         adb.start()
         startRemoteControl()
+        startLiveTelemetry()
     }
 
     override fun onDestroy() {
+        telemetryHandler.removeCallbacksAndMessages(null)
+        telemetryTask?.cancel(true)
         activeTask?.cancel(true)
         remoteReceiver?.close()
         remoteReceiver = null
@@ -277,6 +297,7 @@ class PremiumOpsActivity : Activity() {
         val root = verticalScroll()
         root.addView(pageTitle("Comandos", "Personalização e investigação sem decorar shell"))
         root.addView(infoStrip("TayTech", "Conexão automática e recuperável", "TOCAR PARA GERENCIAR") { showConnectionDialog() }, margins(top = 16))
+        root.addView(buildLiveHealthCard(), margins(top = 12))
 
         root.addView(sectionTitle("Ações de alto valor", "Fluxos compostos para o dia a dia"), margins(top = 22))
         root.addView(featureAction("◇", "Analisar e enxugar a central", "Uma coleta: CPU, memória, HOME, WebView, Google, logs e próximos alvos — ÔMEGAS ignorado automaticamente.") {
@@ -352,6 +373,202 @@ class PremiumOpsActivity : Activity() {
         pressFeedback(row)
         return row
     }
+
+    private fun startLiveTelemetry() {
+        telemetryHandler.removeCallbacksAndMessages(null)
+        telemetryHandler.post(object : Runnable {
+            override fun run() {
+                requestLiveTelemetry(force = false)
+                telemetryHandler.postDelayed(this, LIVE_TELEMETRY_INTERVAL_MS)
+            }
+        })
+    }
+
+    private fun requestLiveTelemetry(force: Boolean) {
+        if (!connectionReady) {
+            renderLiveTelemetryUnavailable("Aguardando conexão ADB com a TayTech")
+            return
+        }
+        if (!force && currentScreen !in setOf("commands", "apps", "diagnostics")) return
+        if (activeTask?.isDone == false || telemetryTask?.isDone == false || !remoteOperationGate.canStartLocal()) return
+        if (::liveHealthFreshness.isInitialized) {
+            liveHealthFreshness.text = "AO VIVO · atualizando…"
+            liveHealthFreshness.setTextColor(cyan)
+        }
+        telemetryTask = adb.execute(LiveTelemetryCollector.COMMAND, timeoutMs = 12_000L) { outcome ->
+            telemetryTask = null
+            if (outcome.transportError != null) {
+                renderLiveTelemetryUnavailable("Telemetria pausada · conexão ADB indisponível")
+                return@execute
+            }
+            if (outcome.exitCode != 0) {
+                renderLiveTelemetryUnavailable("A TayTech não entregou a amostra ao vivo")
+                return@execute
+            }
+            val snapshot = LiveTelemetryParser.parse(outcome.stdout)
+            latestTelemetryRaw = outcome.stdout
+            latestTelemetry = snapshot
+            renderLiveTelemetry(snapshot)
+            if (currentScreen == "apps") refreshAppList()
+        }
+    }
+
+    private fun buildLiveHealthCard(): View = card(Color.rgb(7, 17, 29)).apply {
+        background = rounded(Color.rgb(7, 17, 29), 20, cyan)
+        val header = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val title = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL }
+        title.addView(text("Agora na TayTech", 16f, textPrimary, true))
+        title.addView(text("Estado vivo, não um comando que você precisa lembrar de executar", 10f, textSecondary, false).apply { setPadding(0, dp(3), 0, 0) })
+        header.addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        liveHealthFreshness = text("AO VIVO · aguardando", 9f, warning, true).apply { gravity = Gravity.CENTER }
+        header.addView(liveHealthFreshness)
+        addView(header)
+
+        val metrics = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.HORIZONTAL }
+        val ram = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(12), dp(8), 0) }
+        ram.addView(text("RAM USADA", 9f, textMuted, true).apply { letterSpacing = 0.10f })
+        liveRamValue = text("—", 21f, textPrimary, true)
+        ram.addView(liveRamValue, margins(top = 4))
+        liveRamDetail = text("Aguardando leitura", 10f, textSecondary, false)
+        ram.addView(liveRamDetail, margins(top = 3))
+        liveRamBar = ProgressBar(this@PremiumOpsActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
+            progressTintList = ColorStateList.valueOf(cyan)
+            progressBackgroundTintList = ColorStateList.valueOf(surface3)
+        }
+        ram.addView(liveRamBar, margins(top = 8, height = 6))
+        metrics.addView(ram, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val cpu = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(12), 0, 0) }
+        cpu.addView(text("CPU AGORA", 9f, textMuted, true).apply { letterSpacing = 0.10f })
+        liveCpuValue = text("—", 21f, textPrimary, true)
+        cpu.addView(liveCpuValue, margins(top = 4))
+        liveCpuDetail = text("Aguardando leitura", 10f, textSecondary, false)
+        cpu.addView(liveCpuDetail, margins(top = 3))
+        liveCpuBar = ProgressBar(this@PremiumOpsActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
+            progressTintList = ColorStateList.valueOf(success)
+            progressBackgroundTintList = ColorStateList.valueOf(surface3)
+        }
+        cpu.addView(liveCpuBar, margins(top = 8, height = 6))
+        metrics.addView(cpu, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(metrics)
+
+        addView(text("Quem está usando RAM agora", 11f, textPrimary, true), margins(top = 14))
+        liveMemoryConsumersHost = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL }
+        liveMemoryConsumersHost.addView(text("Aguardando processos…", 10f, textMuted, false))
+        addView(liveMemoryConsumersHost, margins(top = 6))
+
+        addView(text("Quem está usando CPU agora", 11f, textPrimary, true), margins(top = 12))
+        liveCpuConsumersHost = LinearLayout(this@PremiumOpsActivity).apply { orientation = LinearLayout.VERTICAL }
+        liveCpuConsumersHost.addView(text("Aguardando processos…", 10f, textMuted, false))
+        addView(liveCpuConsumersHost, margins(top = 6))
+
+        addView(text("A RAM usada não precisa ser igual à soma dos apps: kernel, cache e outras áreas do Android também consomem memória. A lista usa PSS para atribuir memória aos processos.", 9f, textMuted, false), margins(top = 12))
+        addView(text("Toque para abrir a leitura completa", 10f, cyan, true), margins(top = 8))
+        setOnClickListener {
+            latestTelemetry?.let(::showLiveTelemetryDetail) ?: requestLiveTelemetry(force = true)
+        }
+        pressFeedback(this)
+    }
+
+    private fun renderLiveTelemetry(snapshot: LiveTelemetrySnapshot) {
+        if (!::liveRamValue.isInitialized) return
+        liveRamValue.text = if (snapshot.totalRamKb > 0L && snapshot.usedRamKb > 0L) "${formatMemoryKb(snapshot.usedRamKb)} / ${formatMemoryKb(snapshot.totalRamKb)}" else "—"
+        liveRamDetail.text = if (snapshot.availableRamKb > 0L) "${formatMemoryKb(snapshot.availableRamKb)} disponíveis · ${snapshot.usedRamPercent}% em uso" else "Memória disponível não exposta"
+        liveRamBar.progress = snapshot.usedRamPercent.coerceIn(0, 100) * 10
+        liveCpuValue.text = snapshot.cpuTotalPercent?.let(::formatPercent) ?: "—"
+        liveCpuDetail.text = snapshot.load1?.let { "load 1m ${String.format(Locale.US, "%.2f", it)}" } ?: "Carga média não exposta"
+        liveCpuBar.progress = ((snapshot.cpuTotalPercent ?: 0.0).coerceIn(0.0, 100.0) * 10.0).toInt()
+        liveHealthFreshness.text = "AO VIVO · ${clock(snapshot.capturedAtMs)}"
+        liveHealthFreshness.setTextColor(success)
+        renderConsumerList(liveMemoryConsumersHost, snapshot.topMemory(4), memory = true)
+        renderConsumerList(liveCpuConsumersHost, snapshot.topCpu(4), memory = false)
+    }
+
+    private fun renderLiveTelemetryUnavailable(message: String) {
+        if (!::liveRamValue.isInitialized) return
+        liveHealthFreshness.text = "PAUSADO"
+        liveHealthFreshness.setTextColor(warning)
+        liveRamDetail.text = message
+        liveCpuDetail.text = message
+    }
+
+    private fun renderConsumerList(host: LinearLayout, items: List<ProcessResourceUsage>, memory: Boolean) {
+        host.removeAllViews()
+        if (items.isEmpty()) {
+            host.addView(text("Nenhum consumidor foi exposto nesta amostra.", 10f, textMuted, false))
+            return
+        }
+        items.forEachIndexed { index, item ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(5), 0, dp(5)) }
+            row.addView(text("${index + 1}", 10f, textMuted, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(24), dp(28)))
+            val name = text(processDisplayName(item.processName), 11f, textPrimary, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+            row.addView(name, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val value = if (memory) formatMemoryKb(item.pssKb) else formatPercent(item.cpuPercent)
+            row.addView(text(value, 11f, if (memory) cyan else success, true))
+            host.addView(row)
+        }
+    }
+
+    private fun showLiveTelemetryDetail(snapshot: LiveTelemetrySnapshot) {
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(18), dp(20), dp(12)); background = rounded(surface, 24, line) }
+        panel.addView(text("Saúde da TayTech", 22f, textPrimary, true))
+        panel.addView(text("Leitura ${clock(snapshot.capturedAtMs)} · atualizada automaticamente enquanto Comandos, Apps ou Diagnóstico estão em uso.", 10f, textMuted, false), margins(top = 5))
+        panel.addView(text("RAM", 12f, textPrimary, true), margins(top = 16))
+        panel.addView(text(if (snapshot.totalRamKb > 0L) "${formatMemoryKb(snapshot.usedRamKb)} usados de ${formatMemoryKb(snapshot.totalRamKb)} · ${formatMemoryKb(snapshot.availableRamKb)} disponíveis" else "A TayTech não expôs os totais de RAM nesta amostra.", 15f, cyan, true), margins(top = 5))
+        panel.addView(text("PSS atribui memória compartilhada de forma proporcional aos processos; por isso é melhor para comparar apps, mas não deve somar exatamente ao total de RAM usada.", 10f, textSecondary, false), margins(top = 5))
+        panel.addView(text("Maiores consumidores de RAM", 11f, textPrimary, true), margins(top = 12))
+        val memHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        renderConsumerList(memHost, snapshot.topMemory(12), memory = true)
+        panel.addView(memHost, margins(top = 5))
+        panel.addView(text("CPU", 12f, textPrimary, true), margins(top = 16))
+        panel.addView(text(snapshot.cpuTotalPercent?.let { "Uso total amostrado ${formatPercent(it)}" } ?: "Uso total não exposto", 15f, success, true), margins(top = 5))
+        val cpuHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        renderConsumerList(cpuHost, snapshot.topCpu(12), memory = false)
+        panel.addView(cpuHost, margins(top = 5))
+        val raw = text(latestTelemetryRaw.take(18000), 9f, Color.rgb(185, 203, 224), false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true); visibility = View.GONE }
+        panel.addView(raw, margins(top = 12))
+        lateinit var rawToggle: TextView
+        rawToggle = softButton("Ver evidência técnica") {
+            val show = raw.visibility != View.VISIBLE
+            raw.visibility = if (show) View.VISIBLE else View.GONE
+            rawToggle.text = if (show) "Ocultar evidência técnica" else "Ver evidência técnica"
+        }
+        panel.addView(rawToggle, margins(top = 12))
+        lateinit var dialog: AlertDialog
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actions.addView(softButton("Atualizar agora") { requestLiveTelemetry(force = true) }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
+        actions.addView(primaryButton("Fechar") { dialog.dismiss() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        panel.addView(actions, margins(top = 10))
+        dialog = premiumDialog(panel)
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+    }
+
+    private fun processDisplayName(processName: String): String {
+        val pkg = processName.substringBefore(':')
+        return if (pkg.contains('.')) PackageIntelligence.friendlyName(pkg) else processName
+    }
+
+    private fun resourceUsageText(usage: ProcessResourceUsage): String {
+        val parts = mutableListOf<String>()
+        if (usage.pssKb > 0L) parts += "RAM atribuída ${formatMemoryKb(usage.pssKb)}"
+        if (usage.cpuPercent > 0.0) parts += "CPU ${formatPercent(usage.cpuPercent)}"
+        return parts.joinToString(" · ")
+    }
+
+    private fun formatMemoryKb(kb: Long): String = when {
+        kb >= 1024L * 1024L -> String.format(Locale.US, "%.1f GB", kb.toDouble() / (1024.0 * 1024.0))
+        kb > 0L -> "${(kb / 1024.0).toInt()} MB"
+        else -> "—"
+    }
+
+    private fun formatPercent(value: Double): String = if (value >= 10.0) String.format(Locale.US, "%.0f%%", value) else String.format(Locale.US, "%.1f%%", value)
+    private fun clock(ms: Long): String = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(ms))
+    private companion object { const val LIVE_TELEMETRY_INTERVAL_MS = 5_000L }
 
     private fun buildTerminalScreen(): View {
         val root = verticalScroll()
@@ -1123,6 +1340,7 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun renderConnectionState(state: RemoteConnectionState) {
+        connectionReady = state is RemoteConnectionState.Connected
         if (!::statusView.isInitialized) return
         when (state) {
             RemoteConnectionState.Searching -> setConnectionUi("◌ PROCURANDO", "Descoberta ADB/mDNS", warning)
@@ -1132,6 +1350,7 @@ class PremiumOpsActivity : Activity() {
             is RemoteConnectionState.NeedsPairing -> setConnectionUi("! PAREAR", state.reason, warning)
             is RemoteConnectionState.Error -> setConnectionUi("× FALHA", state.reason, danger)
         }
+        if (connectionReady) requestLiveTelemetry(force = true) else renderLiveTelemetryUnavailable("Aguardando conexão ADB com a TayTech")
     }
 
     private fun setConnectionUi(label: String, detail: String, color: Int) {
@@ -1181,7 +1400,7 @@ class PremiumOpsActivity : Activity() {
             runOnUiThread { renderRemoteTransportState(state) }
         }.also { it.start() }
 
-        renderRemoteStatus("CONSOLE ●", "GPT → GitHub → S23 → ADB → TayTech · polling " + config.pollSeconds + "s", success)
+        renderRemoteStatus("CONSOLE ●", "Ativo · polling " + config.pollSeconds + "s", success)
     }
 
     private fun remoteControlConfig(): GitHubControlConfig {
@@ -1317,7 +1536,7 @@ class PremiumOpsActivity : Activity() {
 
     private fun renderRemoteStatus(label: String, detail: String, color: Int) {
         if (!::remoteStatusView.isInitialized) return
-        remoteStatusView.text = label
+        remoteStatusView.text = if (detail.isBlank()) label else "$label · ${detail.take(34)}"
         remoteStatusView.setTextColor(color)
         remoteStatusView.contentDescription = "$label · $detail"
     }
