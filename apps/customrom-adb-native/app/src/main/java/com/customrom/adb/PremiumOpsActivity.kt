@@ -1170,7 +1170,8 @@ class PremiumOpsActivity : Activity() {
                 remoteOperationGate.onRemoteState(state)
                 renderRemoteJobState(state, title)
             },
-            onVerifiedChange = ::recordVerifiedRemoteChange
+            onVerifiedChange = ::recordVerifiedRemoteChange,
+            sessionStore = RemoteConsoleSessionStore(File(filesDir, "customrom_remote_console_sessions.json"))
         )
         remoteReceiver = GitHubIssueReceiver(
             source = client,
@@ -1180,7 +1181,7 @@ class PremiumOpsActivity : Activity() {
             runOnUiThread { renderRemoteTransportState(state) }
         }.also { it.start() }
 
-        renderRemoteStatus("REMOTO ●", "GitHub → S23 → ADB → TayTech", success)
+        renderRemoteStatus("CONSOLE ●", "GPT → GitHub → S23 → ADB → TayTech · polling " + config.pollSeconds + "s", success)
     }
 
     private fun remoteControlConfig(): GitHubControlConfig {
@@ -1335,7 +1336,7 @@ class PremiumOpsActivity : Activity() {
         panel.addView(text("Controle remoto", 22f, textPrimary, true))
         panel.addView(
             text(
-                "GitHub privado → S23 → ADB → TayTech. O GitHub é só o transporte; comandos e resultados continuam dentro do CUSTOMROM.",
+                "Console GPT → GitHub → S23 → ADB → TayTech. Jobs com sessionId + sequência mantêm a investigação causal e o resultado volta para a própria Issue.",
                 11f,
                 textSecondary,
                 false
@@ -1344,7 +1345,7 @@ class PremiumOpsActivity : Activity() {
         )
         panel.addView(
             text(
-                "${config.owner}/${config.repo}  ·  ${config.titlePrefix}\nAlvo: ${config.target}",
+                "${config.owner}/${config.repo}  ·  ${config.titlePrefix}\nAlvo: ${config.target} · polling: ${config.pollSeconds}s",
                 10f,
                 textMuted,
                 false

@@ -30,6 +30,7 @@ AGENT_ACTIVITY = APP / "agent/src/main/java/com/customrom/agent/AgentActivity.ja
 AGENT_RECEIVER = APP / "agent/src/main/java/com/customrom/agent/BootReceiver.java"
 REMOTE_CONTRACT = APP / "app/src/main/java/com/customrom/adb/CustomromJobContract.kt"
 REMOTE_STORE = APP / "app/src/main/java/com/customrom/adb/IssueJobStore.kt"
+REMOTE_SESSION_STORE = APP / "app/src/main/java/com/customrom/adb/RemoteConsoleSessionStore.kt"
 REMOTE_REGISTRY = APP / "app/src/main/java/com/customrom/adb/RemoteOperationRegistry.kt"
 REMOTE_RECEIPT = APP / "app/src/main/java/com/customrom/adb/RemoteReceiptFormatter.kt"
 REMOTE_CLIENT = APP / "app/src/main/java/com/customrom/adb/GitHubIssueClient.kt"
@@ -147,6 +148,8 @@ REQUIRED_REMOTE_UI_SIGNALS = [
     "RemoteCommandPort",
     "onVerifiedChange = ::recordVerifiedRemoteChange",
     "private fun recordVerifiedRemoteChange",
+    "RemoteConsoleSessionStore",
+    "GPT → GitHub → S23 → ADB → TayTech",
     "Remoto",
 ]
 
@@ -193,6 +196,7 @@ def main() -> int:
         AGENT_RECEIVER,
         REMOTE_CONTRACT,
         REMOTE_STORE,
+        REMOTE_SESSION_STORE,
         REMOTE_REGISTRY,
         REMOTE_RECEIPT,
         REMOTE_CLIENT,

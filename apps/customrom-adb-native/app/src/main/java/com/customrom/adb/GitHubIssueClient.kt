@@ -33,7 +33,7 @@ data class GitHubControlConfig(
             allowedAuthor = "viluadmcontas2-dot",
             target = "taytech-primary",
             titlePrefix = "[CUSTOMROM JOB]",
-            pollSeconds = 10,
+            pollSeconds = 5,
             enabled = false
         )
     }
