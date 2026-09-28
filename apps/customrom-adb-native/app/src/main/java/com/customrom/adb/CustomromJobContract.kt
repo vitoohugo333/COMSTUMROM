@@ -10,6 +10,8 @@ object CustomromJobContract {
     private val allowedFields = setOf(
         "schema",
         "requestId",
+        "sessionId",
+        "sequence",
         "target",
         "mode",
         "action",
@@ -20,6 +22,7 @@ object CustomromJobContract {
     )
 
     private val requestIdPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:-]{2,99}$")
+    private val sessionIdPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:-]{2,63}$")
     private val targetPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$")
 
     fun parse(body: String): RemoteJob {
@@ -34,6 +37,17 @@ object CustomromJobContract {
 
         val requestId = root.requireString("requestId")
         require(requestIdPattern.matches(requestId)) { "Invalid requestId" }
+
+        val sessionId = if (root.has("sessionId")) root.requireString("sessionId") else ""
+        val hasSequence = root.has("sequence")
+        val sequence = if (hasSequence) root.getLong("sequence") else 0L
+        require((sessionId.isBlank() && !hasSequence) || (sessionId.isNotBlank() && hasSequence)) {
+            "sessionId and sequence must be provided together"
+        }
+        if (sessionId.isNotBlank()) {
+            require(sessionIdPattern.matches(sessionId)) { "Invalid sessionId" }
+            require(sequence in 1L..1_000_000L) { "sequence must be 1..1000000" }
+        }
 
         val target = root.requireString("target")
         require(targetPattern.matches(target)) { "Invalid target" }
@@ -57,6 +71,8 @@ object CustomromJobContract {
                 RemoteJob(
                     schema = schema,
                     requestId = requestId,
+                    sessionId = sessionId,
+                    sequence = sequence,
                     target = target,
                     mode = mode,
                     action = action,
@@ -72,6 +88,8 @@ object CustomromJobContract {
                 RemoteJob(
                     schema = schema,
                     requestId = requestId,
+                    sessionId = sessionId,
+                    sequence = sequence,
                     target = target,
                     mode = mode,
                     command = command,
@@ -86,6 +104,8 @@ object CustomromJobContract {
         val canonical = buildString {
             field("schema", job.schema)
             field("requestId", job.requestId)
+            field("sessionId", job.sessionId)
+            field("sequence", job.sequence.toString())
             field("target", job.target)
             field("mode", job.mode.name)
             field("action", job.action)

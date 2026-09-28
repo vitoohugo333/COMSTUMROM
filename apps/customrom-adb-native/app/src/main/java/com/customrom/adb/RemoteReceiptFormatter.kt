@@ -2,6 +2,8 @@ package com.customrom.adb
 
 data class RemoteReceiptData(
     val requestId: String,
+    val sessionId: String = "",
+    val sequence: Long = 0L,
     val title: String,
     val state: RemoteJobState,
     val risk: String,
@@ -52,6 +54,10 @@ object RemoteReceiptFormatter {
 
         val technical = buildString {
             append("requestId: ").append(data.requestId).append('\n')
+            if (data.sessionId.isNotBlank()) {
+                append("sessionId: ").append(data.sessionId).append('\n')
+                append("sequence: ").append(data.sequence).append('\n')
+            }
             append("exitCode: ").append(data.exitCode).append('\n')
             append("transportError: ").append(if (transport.isEmpty()) "none" else transport).append('\n')
             if (data.stdout.isNotBlank()) {
@@ -66,6 +72,10 @@ object RemoteReceiptFormatter {
             append(icon).append(' ').append(data.title).append('\n').append('\n')
             append(summary).append('\n').append('\n')
             append("Estado: ").append(humanState).append('\n')
+            if (data.sessionId.isNotBlank()) {
+                append("Sessão: ").append(data.sessionId).append('\n')
+                append("Sequência: ").append(data.sequence).append('\n')
+            }
             append("Risco: ").append(data.risk).append('\n')
             append("Duração: ").append(formatDuration(data.durationMs)).append('\n')
             if (data.previousState.isNotBlank()) {

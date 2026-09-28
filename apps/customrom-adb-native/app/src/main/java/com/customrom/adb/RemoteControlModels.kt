@@ -8,6 +8,8 @@ enum class RemoteJobMode {
 data class RemoteJob(
     val schema: String,
     val requestId: String,
+    val sessionId: String = "",
+    val sequence: Long = 0L,
     val target: String,
     val mode: RemoteJobMode,
     val action: String = "",
@@ -38,6 +40,8 @@ enum class ReplayDecision {
 data class StoredRemoteJob(
     val requestId: String,
     val digest: String,
+    val sessionId: String = "",
+    val sequence: Long = 0L,
     val state: RemoteJobState,
     val effectful: Boolean,
     val receipt: String = "",

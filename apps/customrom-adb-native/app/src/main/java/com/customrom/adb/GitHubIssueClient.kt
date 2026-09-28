@@ -12,7 +12,7 @@ data class GitHubControlConfig(
     val allowedAuthor: String,
     val target: String,
     val titlePrefix: String,
-    val pollSeconds: Int = 10,
+    val pollSeconds: Int = 5,
     val enabled: Boolean = false
 ) {
     init {
@@ -52,12 +52,17 @@ class GitHubApiException(val statusCode: Int, message: String) : RuntimeExceptio
 class GitHubIssueClient(
     private val config: GitHubControlConfig,
     private val tokenProvider: () -> String?,
-    private val apiBase: String = "https://api.github.com"
+    private val apiBase: String = "https://api.github.com",
+    private val connectionFactory: (URL) -> HttpURLConnection = { url ->
+        url.openConnection() as HttpURLConnection
+    }
 ) : RemoteIssueSource {
+    private data class CachedGet(val etag: String, val body: String)
+    private val getCache = mutableMapOf<String, CachedGet>()
     override fun listOpenJobs(): List<RemoteGitHubIssue> {
         val response = request(
             method = "GET",
-            path = "/repos/${config.owner}/${config.repo}/issues?state=open&per_page=50"
+            path = "/repos/${config.owner}/${config.repo}/issues?state=open&sort=created&direction=asc&per_page=50"
         )
         return parseIssues(response, config.titlePrefix)
     }
@@ -85,7 +90,10 @@ class GitHubIssueClient(
         require(token.isNotEmpty()) { "GitHub control is not authenticated" }
         require(path.startsWith("/repos/")) { "Unexpected GitHub API path" }
 
-        val connection = URL(apiBase.trimEnd('/') + path).openConnection() as HttpURLConnection
+        val url = URL(apiBase.trimEnd('/') + path)
+        val connection = connectionFactory(url)
+        val cacheKey = if (method == "GET" && body == null) path else null
+        val cached = cacheKey?.let { key -> synchronized(getCache) { getCache[key] } }
         return try {
             connection.requestMethod = method
             connection.connectTimeout = CONNECT_TIMEOUT_MS
@@ -94,6 +102,9 @@ class GitHubIssueClient(
             connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             connection.setRequestProperty("User-Agent", "CUSTOMROM-ADB-S23")
             connection.setRequestProperty("Authorization", "Bearer $token")
+            if (!cached?.etag.isNullOrBlank()) {
+                connection.setRequestProperty("If-None-Match", cached!!.etag)
+            }
             connection.useCaches = false
 
             if (body != null) {
@@ -105,12 +116,23 @@ class GitHubIssueClient(
             }
 
             val status = connection.responseCode
+            if (status == HttpURLConnection.HTTP_NOT_MODIFIED && cached != null) {
+                return cached.body
+            }
             val response = readBounded(
                 if (status in 200..299) connection.inputStream else connection.errorStream,
                 MAX_RESPONSE_BYTES
             )
             if (status !in 200..299) {
                 throw GitHubApiException(status, "GitHub API returned HTTP $status: ${response.take(512)}")
+            }
+            if (cacheKey != null) {
+                val etag = connection.getHeaderField("ETag").orEmpty()
+                if (etag.isNotBlank()) {
+                    synchronized(getCache) {
+                        getCache[cacheKey] = CachedGet(etag = etag, body = response)
+                    }
+                }
             }
             response
         } finally {
@@ -168,7 +190,7 @@ class GitHubIssueClient(
                         )
                     )
                 }
-            }
+            }.sortedBy { it.number }
         }
     }
 }

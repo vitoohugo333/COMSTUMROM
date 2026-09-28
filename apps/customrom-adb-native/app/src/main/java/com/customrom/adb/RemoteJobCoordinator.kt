@@ -19,7 +19,8 @@ class RemoteJobCoordinator(
     private val commandPort: RemoteCommandPort,
     private val publisher: RemoteReceiptPublisher,
     private val onState: (RemoteJobState, String) -> Unit = { _, _ -> },
-    private val onVerifiedChange: (VerifiedRemoteChange) -> Unit = {}
+    private val onVerifiedChange: (VerifiedRemoteChange) -> Unit = {},
+    private val sessionStore: RemoteConsoleSessionStore? = null
 ) : RemoteIssueHandler {
     private val activeRequestIds = mutableSetOf<String>()
 
@@ -49,6 +50,14 @@ class RemoteJobCoordinator(
             ReplayDecision.NEW -> Unit
         }
 
+        when (sessionStore?.evaluate(job) ?: ConsoleSequenceDecision.ACCEPT) {
+            ConsoleSequenceDecision.WAIT -> return RemoteHandleResult.BUSY
+            ConsoleSequenceDecision.REJECT_STALE -> {
+                return reject(issue, job, digest, "Sequência da sessão já foi concluída por outro pedido")
+            }
+            ConsoleSequenceDecision.ACCEPT -> Unit
+        }
+
         val operation = try {
             registry.resolve(job)
         } catch (t: Throwable) {
@@ -65,9 +74,9 @@ class RemoteJobCoordinator(
             return RemoteHandleResult.BUSY
         }
 
-        store.markClaimed(job.requestId, digest, operation.effectful)
+        store.markClaimed(job, digest, operation.effectful)
         activeRequestIds += job.requestId
-        onState(RemoteJobState.CLAIMED, operation.title)
+        onState(RemoteJobState.CLAIMED, displayTitle(job, operation.title))
 
         if (operation.preflightCommand.isNotBlank()) {
             val accepted = commandPort.execute(operation.preflightCommand, job.timeoutSeconds * 1000L) { preflight ->
@@ -95,7 +104,7 @@ class RemoteJobCoordinator(
         previousState: String
     ) {
         store.markRunning(job.requestId)
-        onState(RemoteJobState.RUNNING, operation.title)
+        onState(RemoteJobState.RUNNING, displayTitle(job, operation.title))
         val accepted = commandPort.execute(operation.command, job.timeoutSeconds * 1000L) { outcome ->
             when {
                 outcome.transportError != null && operation.effectful -> {
@@ -210,7 +219,7 @@ class RemoteJobCoordinator(
         )
         store.markUncertain(job.requestId, receipt)
         activeRequestIds -= job.requestId
-        onState(RemoteJobState.UNCERTAIN, operation.title)
+        onState(RemoteJobState.UNCERTAIN, displayTitle(job, operation.title))
         store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
     }
 
@@ -228,7 +237,7 @@ class RemoteJobCoordinator(
         )
         store.markTerminal(job.requestId, state, receipt)
         activeRequestIds -= job.requestId
-        onState(state, operation.title)
+        onState(state, displayTitle(job, operation.title))
         if (
             state == RemoteJobState.COMPLETED &&
             operation.effectful &&
@@ -250,7 +259,7 @@ class RemoteJobCoordinator(
     }
 
     private fun reject(issue: RemoteGitHubIssue, job: RemoteJob, digest: String, reason: String): RemoteHandleResult {
-        store.markClaimed(job.requestId, digest, effectful = false)
+        store.markClaimed(job, digest, effectful = false)
         val receipt = rejectedReceipt(job.requestId, reason)
         store.markTerminal(job.requestId, RemoteJobState.REJECTED, receipt)
         onState(RemoteJobState.REJECTED, reason)
@@ -265,7 +274,7 @@ class RemoteJobCoordinator(
         operation: ResolvedRemoteOperation,
         reason: String
     ): RemoteHandleResult {
-        store.markClaimed(job.requestId, digest, operation.effectful)
+        store.markClaimed(job, digest, operation.effectful)
         val outcome = RemoteShellOutcome("", "", -1, 0, IllegalStateException(reason))
         finishTerminal(issue, job, operation, outcome, RemoteJobState.FAILED)
         return RemoteHandleResult.REJECTED
@@ -282,6 +291,18 @@ class RemoteJobCoordinator(
             current = store.get(current.requestId) ?: current.copy(receiptPublished = true)
         }
 
+        if (current.receiptPublished) {
+            val delivered = runCatching {
+                sessionStore?.markDelivered(
+                    sessionId = current.sessionId,
+                    sequence = current.sequence,
+                    requestId = current.requestId,
+                    state = current.state
+                )
+            }.isSuccess
+            if (!delivered) return
+        }
+
         if (current.state != RemoteJobState.UNCERTAIN) {
             runCatching { publisher.close(issue.number) }
         }
@@ -296,6 +317,8 @@ class RemoteJobCoordinator(
         currentState: String = ""
     ): RemoteReceiptData = RemoteReceiptData(
         requestId = job.requestId,
+        sessionId = job.sessionId,
+        sequence = job.sequence,
         title = operation.title,
         state = state,
         risk = operation.risk,
@@ -308,6 +331,9 @@ class RemoteJobCoordinator(
         currentState = currentState,
         rollbackCommand = operation.rollbackCommandFor(previousState)
     )
+
+    private fun displayTitle(job: RemoteJob, title: String): String =
+        if (job.sessionId.isBlank()) title else title + " · " + job.sessionId + " #" + job.sequence
 
     private fun rejectedReceipt(requestId: String, reason: String): String = RemoteReceiptFormatter.format(
         RemoteReceiptData(

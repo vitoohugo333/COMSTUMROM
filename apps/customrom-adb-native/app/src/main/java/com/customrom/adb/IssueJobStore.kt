@@ -46,6 +46,20 @@ class IssueJobStore(private val file: File) {
     }
 
     @Synchronized
+    fun markClaimed(job: RemoteJob, digest: String, effectful: Boolean) {
+        upsert(
+            StoredRemoteJob(
+                requestId = job.requestId,
+                digest = digest,
+                sessionId = job.sessionId,
+                sequence = job.sequence,
+                state = RemoteJobState.CLAIMED,
+                effectful = effectful
+            )
+        )
+    }
+
+    @Synchronized
     fun markRunning(requestId: String) {
         transition(requestId, RemoteJobState.RUNNING)
     }
@@ -121,6 +135,8 @@ class IssueJobStore(private val file: File) {
                         StoredRemoteJob(
                             requestId = item.getString("requestId"),
                             digest = item.getString("digest"),
+                            sessionId = item.optString("sessionId", ""),
+                            sequence = item.optLong("sequence", 0L),
                             state = RemoteJobState.valueOf(item.getString("state")),
                             effectful = item.optBoolean("effectful", false),
                             receipt = item.optString("receipt", ""),
@@ -144,6 +160,8 @@ class IssueJobStore(private val file: File) {
                 JSONObject().apply {
                     put("requestId", record.requestId)
                     put("digest", record.digest)
+                    put("sessionId", record.sessionId)
+                    put("sequence", record.sequence)
                     put("state", record.state.name)
                     put("effectful", record.effectful)
                     put("receipt", record.receipt)
