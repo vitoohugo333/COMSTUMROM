@@ -95,6 +95,8 @@ REQUIRED_OPS_SIGNALS = [
     "requestLiveTelemetry",
     "refreshAppFilters",
     "appFilterSummaryView",
+    "appResourceViews",
+    "refreshVisibleAppUsage",
     "statePill(\"RODANDO\"",
     "setTerminalBusy",
     "toque para detalhes",
