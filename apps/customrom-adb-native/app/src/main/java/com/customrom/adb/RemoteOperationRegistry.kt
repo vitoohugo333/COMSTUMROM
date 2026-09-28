@@ -78,7 +78,8 @@ class RemoteOperationRegistry(
         if (localRisk != "VERDE") return localRisk
 
         val normalized = command.trim().lowercase()
-        val clearlyReadOnly = REMOTE_READ_ONLY_PREFIXES.any { prefix ->
+        val hasShellComposition = REMOTE_SHELL_COMPOSITION.containsMatchIn(normalized)
+        val clearlyReadOnly = !hasShellComposition && REMOTE_READ_ONLY_PREFIXES.any { prefix ->
             normalized == prefix || normalized.startsWith("$prefix ")
         }
         return if (clearlyReadOnly) "VERDE" else "AMARELO"
@@ -252,6 +253,7 @@ class RemoteOperationRegistry(
 
     companion object {
         private val PACKAGE_PATTERN = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
+        private val REMOTE_SHELL_COMPOSITION = Regex("[;\\n\\r|&\x60]|\\$\\(")
         private val REMOTE_READ_ONLY_PREFIXES = listOf(
             "getprop",
             "dumpsys",
