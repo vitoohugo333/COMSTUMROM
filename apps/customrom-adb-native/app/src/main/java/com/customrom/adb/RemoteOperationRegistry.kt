@@ -8,8 +8,16 @@ data class ResolvedRemoteOperation(
     val requiresAllowChanges: Boolean,
     val preflightCommand: String = "",
     val verificationCommand: String = "",
-    val rollbackCommand: String = ""
-)
+    val rollbackCommand: String = "",
+    val verificationMustContain: List<String> = emptyList(),
+    val verificationMustBeBlank: Boolean = false
+) {
+    fun verificationSatisfied(stdout: String): Boolean {
+        val observed = stdout.trim()
+        if (verificationMustBeBlank && observed.isNotEmpty()) return false
+        return verificationMustContain.all { required -> observed.contains(required) }
+    }
+}
 
 class RemoteOperationRegistry(
     private val recipes: List<PremiumRecipe> = emptyList()
@@ -64,7 +72,8 @@ class RemoteOperationRegistry(
                 title = "Parar aplicativo",
                 command = "am force-stop $pkg",
                 preflight = "pidof $pkg || true",
-                verification = "pidof $pkg || true"
+                verification = "pidof $pkg || true",
+                verificationMustBeBlank = true
             )
         }
         "package.disable" -> {
@@ -75,7 +84,8 @@ class RemoteOperationRegistry(
                 command = "pm disable-user --user 0 $pkg",
                 preflight = packageStateCommand(pkg),
                 verification = packageStateCommand(pkg),
-                rollback = "pm enable $pkg"
+                rollback = "pm enable $pkg",
+                verificationMustContain = listOf("state=disabled")
             )
         }
         "package.enable" -> {
@@ -85,7 +95,8 @@ class RemoteOperationRegistry(
                 command = "pm enable $pkg",
                 preflight = packageStateCommand(pkg),
                 verification = packageStateCommand(pkg),
-                rollback = "pm disable-user --user 0 $pkg"
+                rollback = "pm disable-user --user 0 $pkg",
+                verificationMustContain = listOf("state=enabled")
             )
         }
         "settings.animations" -> {
@@ -101,7 +112,12 @@ class RemoteOperationRegistry(
                 title = if (enabled) "Ativar animações" else "Desativar animações",
                 command = "settings put global window_animation_scale $value; settings put global transition_animation_scale $value; settings put global animator_duration_scale $value",
                 preflight = animationStateCommand(),
-                verification = animationStateCommand()
+                verification = animationStateCommand(),
+                verificationMustContain = listOf(
+                    "window=$value",
+                    "transition=$value",
+                    "animator=$value"
+                )
             )
         }
         "recipe.run" -> {
@@ -135,7 +151,9 @@ class RemoteOperationRegistry(
         command: String,
         preflight: String = "",
         verification: String = "",
-        rollback: String = ""
+        rollback: String = "",
+        verificationMustContain: List<String> = emptyList(),
+        verificationMustBeBlank: Boolean = false
     ): ResolvedRemoteOperation {
         val localRisk = PremiumSafetyPolicy.classify(command)
         require(localRisk != "VERMELHO") { "Operation classified RED locally" }
@@ -147,7 +165,9 @@ class RemoteOperationRegistry(
             requiresAllowChanges = true,
             preflightCommand = preflight,
             verificationCommand = verification,
-            rollbackCommand = rollback
+            rollbackCommand = rollback,
+            verificationMustContain = verificationMustContain,
+            verificationMustBeBlank = verificationMustBeBlank
         )
     }
 
