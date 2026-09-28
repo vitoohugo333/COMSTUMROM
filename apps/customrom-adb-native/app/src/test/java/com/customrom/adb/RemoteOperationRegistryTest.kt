@@ -60,6 +60,38 @@ class RemoteOperationRegistryTest {
     }
 
     @Test
+    fun packageDisableVerificationRequiresDisabledState() {
+        val resolved = registry.resolve(action("package.disable", mapOf("package" to "com.spotify.music"), allowChanges = true))
+
+        assertTrue(resolved.verificationSatisfied("state=disabled"))
+        assertFalse(resolved.verificationSatisfied("state=enabled"))
+    }
+
+    @Test
+    fun packageEnableVerificationRequiresEnabledState() {
+        val resolved = registry.resolve(action("package.enable", mapOf("package" to "com.spotify.music"), allowChanges = true))
+
+        assertTrue(resolved.verificationSatisfied("state=enabled"))
+        assertFalse(resolved.verificationSatisfied("state=disabled"))
+    }
+
+    @Test
+    fun forceStopVerificationRequiresProcessToDisappear() {
+        val resolved = registry.resolve(action("package.forceStop", mapOf("package" to "com.spotify.music"), allowChanges = true))
+
+        assertTrue(resolved.verificationSatisfied(""))
+        assertFalse(resolved.verificationSatisfied("1234"))
+    }
+
+    @Test
+    fun animationVerificationRequiresAllThreeObservedValues() {
+        val resolved = registry.resolve(action("settings.animations", mapOf("enabled" to "false"), allowChanges = true))
+
+        assertTrue(resolved.verificationSatisfied("window=0.0\ntransition=0.0\nanimator=0.0"))
+        assertFalse(resolved.verificationSatisfied("window=0.0\ntransition=1.0\nanimator=0.0"))
+    }
+
+    @Test
     fun shellRiskIsAlwaysClassifiedLocally() {
         val job = RemoteJob(
             schema = CustomromJobContract.SCHEMA,
