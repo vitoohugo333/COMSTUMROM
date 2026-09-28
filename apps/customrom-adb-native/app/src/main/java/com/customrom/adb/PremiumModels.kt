@@ -38,6 +38,7 @@ object PremiumSafetyPolicy {
         "erase ",
         "wipe ",
         "pm uninstall",
+        "pm clear",
         "adb root",
         " remount",
         "mount -o rw",
@@ -63,7 +64,6 @@ object PremiumSafetyPolicy {
         "am start",
         "am broadcast",
         "settings put",
-        "pm clear",
         "svc ",
         "setprop ",
         "reboot",
@@ -111,7 +111,11 @@ object PremiumSafetyPolicy {
     )
 
     fun classify(command: String): String {
-        val normalized = " ${command.lowercase(Locale.ROOT).replace('\n', ' ')} "
+        val collapsed = command
+            .lowercase(Locale.ROOT)
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val normalized = " $collapsed "
         if (destructiveTokens.any { normalized.contains(it) }) return "VERMELHO"
         if (reversibleTokens.any { normalized.contains(it) }) return "AMARELO"
         return "VERDE"
