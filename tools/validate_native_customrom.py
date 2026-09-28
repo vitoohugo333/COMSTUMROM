@@ -40,6 +40,8 @@ REMOTE_COORDINATOR = APP / "app/src/main/java/com/customrom/adb/RemoteJobCoordin
 REMOTE_RECEIVER = APP / "app/src/main/java/com/customrom/adb/GitHubIssueReceiver.kt"
 REMOTE_GATE = APP / "app/src/main/java/com/customrom/adb/RemoteOperationGate.kt"
 REMOTE_LEDGER_MAPPER = APP / "app/src/main/java/com/customrom/adb/RemoteChangeLedgerMapper.kt"
+LIVE_TELEMETRY = APP / "app/src/main/java/com/customrom/adb/LiveTelemetry.kt"
+APP_PROJECTION = APP / "app/src/main/java/com/customrom/adb/AppInventoryProjection.kt"
 
 MUTATING = [
     r"\bpm\s+disable",
@@ -89,6 +91,13 @@ REQUIRED_OPS_SIGNALS = [
     "Por que a central está lenta?",
     "Alterações feitas pelo CUSTOMROM",
     "Evidence Pack",
+    "Agora na TayTech",
+    "requestLiveTelemetry",
+    "refreshAppFilters",
+    "appFilterSummaryView",
+    "statePill(\"RODANDO\"",
+    "setTerminalBusy",
+    "toque para detalhes",
 ]
 
 REQUIRED_ACTIONABLE_UI_SIGNALS = [
@@ -207,6 +216,8 @@ def main() -> int:
         REMOTE_RECEIVER,
         REMOTE_GATE,
         REMOTE_LEDGER_MAPPER,
+        LIVE_TELEMETRY,
+        APP_PROJECTION,
     ):
         if not path.is_file():
             fail(f"arquivo obrigatório ausente: {path.relative_to(ROOT)}")
@@ -217,6 +228,8 @@ def main() -> int:
     action_engine_src = ACTION_ENGINE.read_text(encoding="utf-8")
     controller_src = ADB_CONTROLLER.read_text(encoding="utf-8")
     premium_models_src = PREMIUM_MODELS.read_text(encoding="utf-8")
+    live_telemetry_src = LIVE_TELEMETRY.read_text(encoding="utf-8")
+    app_projection_src = APP_PROJECTION.read_text(encoding="utf-8")
     app_src = APPLICATION.read_text(encoding="utf-8")
     manifest = MANIFEST.read_text(encoding="utf-8")
     build = BUILD.read_text(encoding="utf-8")
@@ -228,6 +241,8 @@ def main() -> int:
     require_signals(action_engine_src, REQUIRED_ACTION_ENGINE_SIGNALS, "FunctionalActionEngine")
     require_signals(controller_src, REQUIRED_CONTROLLER_SIGNALS, "AdbRemoteController")
     require_signals(ops_src, REQUIRED_REMOTE_UI_SIGNALS, "PremiumOpsActivity/remote-control")
+    require_signals(live_telemetry_src, ["LiveTelemetryCollector", "LiveTelemetryParser", "usageForPackage", "__PSS__", "__CPUINFO__"], "LiveTelemetry")
+    require_signals(app_projection_src, ["object AppInventoryProjection", "FILTERS", "fun filter", "fun count"], "AppInventoryProjection")
 
     if 'Triple("github"' in ops_src.lower() or 'navButtons["github"]' in ops_src:
         fail("GitHub é transporte invisível e não pode virar destino de navegação")
@@ -424,6 +439,10 @@ def main() -> int:
     print("evidence_export=present")
     print("github_issue_adb_bridge=present")
     print("github_transport_hidden_from_navigation=present")
+    print("live_operational_health=present")
+    print("app_filter_selected_state=present")
+    print("app_resource_usage=present")
+    print("explicit_operation_feedback=present")
     print("adb_backend=com.flyfishxu:kadb:2.1.1")
     print("coroutines=1.10.2")
     print("compileSdk=36")
