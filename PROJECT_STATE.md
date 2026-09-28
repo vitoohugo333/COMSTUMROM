@@ -1,10 +1,10 @@
 # Estado oficial — CUSTOMROM ADB Remote Bridge
 
-**Atualizado em:** 2026-09-27 BRT  
+**Atualizado em:** 2026-09-27/28 BRT  
 **Linha de trabalho:** `refactor/customrom-adb-s23-premium`  
 **Estado:** ponte GitHub Issues → S23 → ADB → TayTech concluída e verificada software-side; validação física S23 → TayTech pendente.  
-**Fonte validada:** `a8a6435d7b03acf4622ed02ad4d3bce1f802e5a7`  
-**CI final:** run `36364171239` — validator PASS, JVM unit tests PASS, Android build PASS, artifact upload PASS.  
+**Fonte validada:** `ea81947d3569ef909b7afef2114060f5b5162ac0`  
+**CI final:** run `36370490308` — validator PASS, 80 JVM tests PASS, Android build PASS, artifact upload PASS.  
 **Notion sync:** PASS — checkpoint `3e98ee52-ac54-8136-a3b5-dc4e350a0ce5` em “CUSTOMROM TAYTECH — Central Oficial do Projeto”.  
 **Próximo passo:** instalar o APK verificado no S23 e executar validação física GREEN Issue → S23 → ADB → TayTech → receipt; depois uma única ação YELLOW reversível + rollback.
 
@@ -24,7 +24,9 @@ Contratos verificados:
 - resultado terminal é persistido antes da publicação do receipt;
 - receipt publicado não é duplicado em polling posterior;
 - `UNCERTAIN` permanece aberto para reconciliação e não é repetido automaticamente;
-- shell remoto continua disponível, mas escrita genérica sobe para AMARELO e superfícies estruturais/automotivas ativas sobem para VERMELHO;
+- shell remoto continua disponível, mas comandos não reconhecidos como leitura explícita sobem conservadoramente para AMARELO;
+- shell composto (`;`, pipe, `&&`, newline, backtick ou `$()`) não pode herdar GREEN apenas por começar com um comando de leitura;
+- mutações sobre superfícies automotivas protegidas, inclusive verbos OEM/vendor como set/write/send/inject/transmit/control, sobem para VERMELHO;
 - packages protegidos e owner-critical não passam pelo disable/force-stop remoto genérico;
 - rollback de package e animações é calculado a partir do estado realmente observado;
 - ChangeLedger recebe alterações remotas verificadas;
@@ -32,8 +34,8 @@ Contratos verificados:
 
 Artifact nativo verificado: `CUSTOMROM-ADB-S23-PREMIUM`  
 APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`  
-SHA-256: `c5a43317e2b341f1f9a9fcb44cf95c957ee4229875b7367d429942a5352f25d1`  
-Workflow: `36364171239`
+SHA-256: `7bf527d84d296899ba544d7d134d24b95e6a7678ef757d12e74a43b3a6649110`  
+Workflow: `36370490308`
 
 ## Topologia oficial
 
@@ -142,23 +144,25 @@ Não é necessário transferir manualmente o APK do Agent para a TayTech.
 - ações AMARELAS exigem confirmação;
 - `pm disable-user --user 0` mantém rollback por `pm enable --user 0`;
 - tentativa de persistência ADB salva script de restauração em `/storage/emulated/0/CUSTOMROM/experimentos/adb_persistencia_rollback.sh`;
-- ChangeLedger e sessões preservam evidência operacional.
+- ChangeLedger e sessões preservam evidência operacional;
+- revisão final de segurança fechou dois bypasses de classificação remota por TDD: shell desconhecido não é mais GREEN por padrão e prefixo read-only não mascara composição shell mutante.
 
 ## Evidência de build final
 
 ### Bridge remoto — prova atual
 
-- source: `a8a6435d7b03acf4622ed02ad4d3bce1f802e5a7`;
+- source: `ea81947d3569ef909b7afef2114060f5b5162ac0`;
 - native validator: PASS;
-- JVM unit tests: PASS;
+- JVM unit tests: PASS (`80` testes na suíte final);
 - Android debug build: PASS;
 - artifact upload: PASS;
 - artifact: `CUSTOMROM-ADB-S23-PREMIUM`;
 - APK: `CUSTOMROM-ADB-S23-PREMIUM-debug.apk`;
-- APK SHA-256: `c5a43317e2b341f1f9a9fcb44cf95c957ee4229875b7367d429942a5352f25d1`;
-- workflow: `36364171239`;
-- artifact id: `10947105718`;
-- artifact ZIP digest: `sha256:4b1c112293e9f9c9b20aecddd43176f91240f73a8592ecac6228e7115fc3f557`.
+- APK SHA-256: `7bf527d84d296899ba544d7d134d24b95e6a7678ef757d12e74a43b3a6649110`;
+- workflow: `36370490308`;
+- artifact id: `10949236307`;
+- artifact ZIP digest: `sha256:98c580032c48faea37056c6d6b100a28d506113a2d1d94ae3b841593ac2db1b3`;
+- revisão final: RED reproduzido em `RemoteSafetyRegressionTest`, correção aplicada e suíte/build final GREEN.
 
 ### Base prática / companion
 
