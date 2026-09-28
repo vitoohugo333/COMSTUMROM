@@ -1,3 +1,4 @@
+// Remote/local ADB exclusivity regression contract.
 package com.customrom.adb
 
 import org.junit.Assert.assertFalse
