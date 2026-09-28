@@ -134,14 +134,20 @@ class RemoteJobCoordinator(
         previousState: String
     ) {
         val accepted = commandPort.execute(operation.verificationCommand, job.timeoutSeconds * 1000L) { verification ->
-            if (verification.transportError != null || verification.exitCode != 0) {
+            val semanticVerified = operation.verificationSatisfied(verification.stdout)
+            if (verification.transportError != null || verification.exitCode != 0 || !semanticVerified) {
+                val semanticMessage =
+                    if (!semanticVerified && verification.transportError == null && verification.exitCode == 0) {
+                        "Verificação pós-alteração não confirmou o estado esperado"
+                    } else {
+                        ""
+                    }
                 val failure = RemoteShellOutcome(
                     stdout = mainOutcome.stdout,
-                    stderr = listOf(mainOutcome.stderr, verification.stderr).filter { it.isNotBlank() }.joinToString("\n"),
-                    exitCode = verification.exitCode,
+                    stderr = listOf(mainOutcome.stderr, verification.stderr, semanticMessage).filter { it.isNotBlank() }.joinToString("\n"),
+                    exitCode = if (!semanticVerified && verification.exitCode == 0) -2 else verification.exitCode,
                     durationMs = mainOutcome.durationMs + verification.durationMs,
                     transportError = verification.transportError
-                        ?: IllegalStateException("Verificação pós-alteração não confirmou o estado final")
                 )
                 if (operation.effectful) {
                     finishUncertain(
