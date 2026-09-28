@@ -1155,7 +1155,8 @@ class PremiumOpsActivity : Activity() {
             store = IssueJobStore(File(filesDir, "customrom_remote_jobs.json")),
             commandPort = remoteCommandPort(),
             publisher = publisher,
-            onState = { state, title -> renderRemoteJobState(state, title) }
+            onState = { state, title -> renderRemoteJobState(state, title) },
+            onVerifiedChange = ::recordVerifiedRemoteChange
         )
         remoteReceiver = GitHubIssueReceiver(
             source = client,
@@ -1197,6 +1198,53 @@ class PremiumOpsActivity : Activity() {
                 remoteCoordinatorExecutor.execute { callback(outcome) }
             }
             return true
+        }
+    }
+
+    private fun recordVerifiedRemoteChange(change: VerifiedRemoteChange) {
+        val pkg = change.job.args["package"]?.trim().orEmpty()
+        if (pkg.isEmpty()) return
+
+        val action = when (change.job.action) {
+            "package.disable" -> "disable"
+            "package.enable" -> "enable"
+            "package.forceStop" -> "force-stop"
+            else -> return
+        }
+
+        fun packageState(raw: String, fallback: String): String =
+            Regex("state=(enabled|disabled)").find(raw)?.groupValues?.getOrNull(1) ?: fallback
+
+        val previousState = when (action) {
+            "disable", "enable" -> packageState(change.previousState, "unknown")
+            "force-stop" -> if (change.previousState.isBlank()) "not-running" else "running"
+            else -> "unknown"
+        }
+        val currentState = when (action) {
+            "disable", "enable" -> packageState(change.currentState, if (action == "disable") "disabled" else "enabled")
+            "force-stop" -> if (change.currentState.isBlank()) "stopped" else "running"
+            else -> "unknown"
+        }
+
+        runOnUiThread {
+            ledger.append(
+                ChangeRecord(
+                    packageName = pkg,
+                    action = action,
+                    previousState = previousState,
+                    newState = currentState,
+                    at = System.currentTimeMillis(),
+                    sessionId = session?.id ?: "",
+                    exitCode = change.outcome.exitCode,
+                    rollbackCommand = change.operation.rollbackCommand
+                )
+            )
+            when (action) {
+                "disable" -> updatePackage(pkg) { it.copy(disabled = true, running = false) }
+                "enable" -> updatePackage(pkg) { it.copy(disabled = false) }
+                "force-stop" -> updatePackage(pkg) { it.copy(running = false) }
+            }
+            refreshLedger()
         }
     }
 
