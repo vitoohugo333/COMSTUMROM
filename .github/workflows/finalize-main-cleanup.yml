@@ -1,0 +1,81 @@
+name: Finalize main and clean obsolete branches
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/finalize-main-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout main with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Validate native CUSTOMROM contract
+        run: python3 tools/validate_native_customrom.py
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 15859902
+          packages: platform-tools
+
+      - name: Install stable Android API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Run full JVM unit suite
+        run: gradle -p apps/customrom-adb-native :app:testDebugUnitTest --stacktrace
+
+      - name: Build debug APK on main
+        run: gradle -p apps/customrom-adb-native :app:assembleDebug --stacktrace
+
+      - name: Prove obsolete branches are contained in main
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            refactor/customrom-adb-s23-premium \
+            refactor/customrom-adb-s23-premium-v6-work
+          do
+            git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git merge-base --is-ancestor "origin/$branch" HEAD
+            echo "$branch is fully contained in main"
+          done
+
+      - name: Delete obsolete branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            refactor/customrom-adb-s23-premium \
+            refactor/customrom-adb-s23-premium-v6-work
+          do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+            echo "deleted $branch"
+          done
