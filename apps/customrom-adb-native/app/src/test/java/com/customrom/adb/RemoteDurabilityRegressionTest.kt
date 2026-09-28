@@ -1,3 +1,4 @@
+// Durable replay and rollback regression contract.
 package com.customrom.adb
 
 import java.io.File
