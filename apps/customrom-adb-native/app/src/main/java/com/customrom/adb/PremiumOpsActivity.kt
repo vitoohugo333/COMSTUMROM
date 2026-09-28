@@ -92,6 +92,8 @@ class PremiumOpsActivity : Activity() {
     private lateinit var appSearch: EditText
     private lateinit var appListHost: LinearLayout
     private lateinit var appStatusView: TextView
+    private lateinit var appFiltersHost: LinearLayout
+    private lateinit var appFilterSummaryView: TextView
     private lateinit var liveRamValue: TextView
     private lateinit var liveRamDetail: TextView
     private lateinit var liveRamBar: ProgressBar
@@ -288,7 +290,12 @@ class PremiumOpsActivity : Activity() {
         }
         when (key) {
             "commands" -> refreshCommandList()
-            "apps" -> refreshAppList()
+            "apps" -> {
+                refreshAppFilters()
+                refreshAppList()
+                if (appPackages.isEmpty() && connectionReady && activeTask?.isDone != false) loadAppInventory()
+                requestLiveTelemetry(force = false)
+            }
             "sessions" -> { refreshSessionSummary(); refreshTimeline(); refreshLedger() }
         }
     }
@@ -614,61 +621,70 @@ class PremiumOpsActivity : Activity() {
 
     private fun buildAppsScreen(): View {
         val root = verticalScroll()
-        root.addView(pageTitle("Aplicativos", "Inventário real, criticidade explicável e rollback visível"))
+        root.addView(pageTitle("Aplicativos", "Estado visível, consumo ao vivo e rollback onde houver evidência"))
         val header = card(cyanSoft).apply { background = rounded(cyanSoft, 20, cyan) }
-        header.addView(text("Inteligência de packages", 17f, textPrimary, true))
-        header.addView(text("O CUSTOMROM separa criticidade do aplicativo do risco da ação. Desconhecido nunca vira seguro por ausência de informação.", 11f, Color.rgb(185, 221, 238), false).apply { setPadding(0, dp(6), 0, 0) })
+        header.addView(text("Aplicativos como objetos", 17f, textPrimary, true))
+        header.addView(text("Veja quem está rodando, quem está desativado e quanto cada processo está consumindo quando a telemetria conhece esse dado. Criticidade do app e risco da ação continuam separados.", 11f, Color.rgb(185, 221, 238), false).apply { setPadding(0, dp(6), 0, 0) })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actions.addView(primaryButton("Carregar / atualizar") { loadAppInventory() }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
-        actions.addView(softButton("Alterações") { appFilter = "Alterados"; refreshAppList() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        actions.addView(primaryButton("Atualizar inventário") { loadAppInventory() }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
+        actions.addView(softButton("Ver alterações") { appFilter = "Alterados"; refreshAppFilters(); refreshAppList() }, LinearLayout.LayoutParams(0, dp(48), 1f))
         header.addView(actions, margins(top = 12))
         root.addView(header, margins(top = 16))
 
-        appStatusView = text("Toque em carregar para consultar a TayTech.", 11f, textSecondary, false)
+        appStatusView = text("Ao abrir esta área, o CUSTOMROM consulta a TayTech automaticamente quando a conexão está disponível.", 11f, textSecondary, false)
         root.addView(appStatusView, margins(top = 12))
         appSearch = input("Buscar nome ou package…", "", false).apply { addTextChangedListener(simpleWatcher { refreshAppList() }) }
         root.addView(appSearch, margins(top = 12))
-        root.addView(buildAppFilters(), margins(top = 10))
+        appFiltersHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(appFiltersHost, margins(top = 10))
+        appFilterSummaryView = text("Todos · aguardando inventário", 10f, textMuted, true)
+        root.addView(appFilterSummaryView, margins(top = 8))
         appListHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(appListHost, margins(top = 12))
         root.addView(space(24))
+        refreshAppFilters()
         refreshAppList()
         return root.parent as ScrollView
     }
 
     private fun buildAppFilters(): View {
+        val changed = ledger.list().map { it.packageName }.toSet()
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("Todos", "Rodando", "Usuário", "Sistema", "Desativados", "Protegidos", "Candidatos", "Alterados").forEach { label ->
-            row.addView(filterChip(label) { appFilter = label; refreshAppList() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(38)).apply { rightMargin = dp(7) })
+        AppInventoryProjection.FILTERS.forEach { label ->
+            val count = AppInventoryProjection.count(appPackages, label, changed)
+            row.addView(
+                filterChip(label, count, appFilter == label) {
+                    appFilter = label
+                    refreshAppFilters()
+                    refreshAppList()
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)).apply { rightMargin = dp(7) }
+            )
         }
         scroll.addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return scroll
     }
 
+    private fun refreshAppFilters() {
+        if (!::appFiltersHost.isInitialized) return
+        appFiltersHost.removeAllViews()
+        appFiltersHost.addView(buildAppFilters())
+    }
+
     private fun refreshAppList() {
         if (!::appListHost.isInitialized) return
         appListHost.removeAllViews()
-        val query = if (::appSearch.isInitialized) appSearch.text.toString().trim().lowercase(Locale.ROOT) else ""
+        val query = if (::appSearch.isInitialized) appSearch.text.toString() else ""
         val changed = ledger.list().map { it.packageName }.toSet()
-        val filtered = appPackages.filter { snapshot ->
-            val assessment = PackageIntelligence.assess(snapshot)
-            val matchesQuery = query.isBlank() || snapshot.packageName.lowercase(Locale.ROOT).contains(query) || PackageIntelligence.friendlyName(snapshot.packageName).lowercase(Locale.ROOT).contains(query)
-            val matchesFilter = when (appFilter) {
-                "Rodando" -> snapshot.running
-                "Usuário" -> snapshot.kind == "Usuário"
-                "Sistema" -> snapshot.kind == "Sistema"
-                "Desativados" -> snapshot.disabled
-                "Protegidos" -> assessment.criticality == PackageCriticality.PROTECTED || assessment.criticality == PackageCriticality.HIGH
-                "Candidatos" -> assessment.candidateForReversibleTest
-                "Alterados" -> changed.contains(snapshot.packageName)
-                else -> true
-            }
-            matchesQuery && matchesFilter
-        }.sortedWith(compareBy<PackageSnapshot>({ PackageIntelligence.assess(it).criticality.ordinal }, { PackageIntelligence.friendlyName(it.packageName) }))
-
+        val filtered = AppInventoryProjection.filter(appPackages, appFilter, query, changed)
+        refreshAppFilters()
+        if (::appFilterSummaryView.isInitialized) {
+            appFilterSummaryView.text = if (appPackages.isEmpty()) "$appFilter · inventário ainda não carregado" else "$appFilter · ${filtered.size} de ${appPackages.size} aplicativos"
+            appFilterSummaryView.setTextColor(if (filtered.isEmpty() && appPackages.isNotEmpty()) warning else textMuted)
+        }
         if (filtered.isEmpty()) {
-            appListHost.addView(emptyState(if (appPackages.isEmpty()) "Inventário ainda não carregado" else "Nenhum aplicativo neste filtro", if (appPackages.isEmpty()) "Carregue a lista diretamente da TayTech." else "Troque o filtro ou a busca."))
+            appListHost.addView(emptyState(if (appPackages.isEmpty()) "Inventário ainda não carregado" else "Nenhum aplicativo neste filtro", if (appPackages.isEmpty()) "A conexão saudável dispara a carga automaticamente; você também pode tocar em Atualizar inventário." else "O filtro está ativo. Troque o filtro ou a busca para ampliar o resultado."))
             return
         }
         filtered.forEach { appListHost.addView(appRow(it), margins(bottom = 8)) }
@@ -676,6 +692,8 @@ class PremiumOpsActivity : Activity() {
 
     private fun appRow(snapshot: PackageSnapshot): View {
         val assessment = PackageIntelligence.assess(snapshot)
+        val usage = latestTelemetry?.usageForPackage(snapshot.packageName)
+        val changedByCustomrom = ledger.list().any { it.packageName == snapshot.packageName }
         val row = card().apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)) }
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val identity = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -684,13 +702,20 @@ class PremiumOpsActivity : Activity() {
         top.addView(identity, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         top.addView(criticalityPill(assessment))
         row.addView(top)
-        val state = buildString {
-            append(snapshot.kind)
-            if (snapshot.running) append(" · rodando")
-            if (snapshot.disabled) append(" · desativado")
-            if (ledger.wasDisabledByCustomrom(snapshot.packageName)) append(" · alterado pelo CUSTOMROM")
+
+        val states = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        if (snapshot.running) states.addView(statePill("RODANDO", success), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        if (snapshot.disabled) states.addView(statePill("DESATIVADO", warning), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        if (!snapshot.running && !snapshot.disabled) states.addView(statePill("ATIVO", textSecondary), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        if (changedByCustomrom) states.addView(statePill("ALTERADO", cyan))
+        row.addView(states, margins(top = 8))
+        row.addView(text(snapshot.kind, 10f, textSecondary, false).apply { setPadding(0, dp(6), 0, 0) })
+
+        if (usage != null && (usage.pssKb > 0L || usage.cpuPercent > 0.0)) {
+            row.addView(text(resourceUsageText(usage), 11f, cyan, true).apply { setPadding(0, dp(6), 0, 0) })
+        } else if (snapshot.running) {
+            row.addView(text("Consumo ainda não apareceu na última amostra ao vivo.", 10f, textMuted, false).apply { setPadding(0, dp(5), 0, 0) })
         }
-        row.addView(text(state, 10f, textSecondary, false).apply { setPadding(0, dp(7), 0, 0) })
         row.addView(text(assessment.reasons.firstOrNull() ?: "Analisar para obter mais evidência", 10f, textMuted, false).apply { setPadding(0, dp(5), 0, 0); maxLines = 2 })
         row.setOnClickListener { showAppDetail(snapshot) }
         pressFeedback(row)
@@ -698,17 +723,21 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun loadAppInventory() {
-        appStatusView.text = "Consultando packages, estado, origem e processos…"
+        if (!::appStatusView.isInitialized) return
+        setAppStatus("Consultando apps, estado, origem e processos na TayTech…", cyan)
         val command = "echo __ALL__; pm list packages -f -u; echo __SYSTEM__; pm list packages -s -f -u; echo __THIRD__; pm list packages -3 -f -u; echo __DISABLED__; pm list packages -d -f -u; echo __RUNNING__; ps -A"
         executeOperation("Inventário de aplicativos", command, "VERDE", showDialog = false) { outcome, result ->
             if (result.success) {
                 val parsed = parsePackageInventory(outcome.stdout)
                 appPackages.clear()
                 appPackages.addAll(parsed)
-                appStatusView.text = "${parsed.size} packages carregados · classificação conservadora local"
+                setAppStatus("${parsed.size} aplicativos carregados · filtros e estados atualizados", success)
+                refreshAppFilters()
                 refreshAppList()
+                requestLiveTelemetry(force = true)
             } else {
-                appStatusView.text = result.title + " · " + result.detail.take(120)
+                setAppStatus("Não foi possível atualizar o inventário · ${result.detail.take(120)} · toque em Atualizar inventário para tentar de novo", danger)
+                showTechnicalResult(result, combineRaw(outcome))
             }
         }
     }
@@ -752,25 +781,31 @@ class PremiumOpsActivity : Activity() {
     private fun showAppDetail(snapshotInput: PackageSnapshot) {
         val snapshot = appPackages.firstOrNull { it.packageName == snapshotInput.packageName } ?: snapshotInput
         val assessment = PackageIntelligence.assess(snapshot)
+        val usage = latestTelemetry?.usageForPackage(snapshot.packageName)
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(18), dp(20), dp(12)); background = rounded(surface, 24, line) }
         panel.addView(text(PackageIntelligence.friendlyName(snapshot.packageName), 21f, textPrimary, true))
         panel.addView(text(snapshot.packageName, 11f, textMuted, false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) }, margins(top = 4))
+        val stateRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        if (snapshot.running) stateRow.addView(statePill("RODANDO", success), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        if (snapshot.disabled) stateRow.addView(statePill("DESATIVADO", warning), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        if (!snapshot.running && !snapshot.disabled) stateRow.addView(statePill("ATIVO", textSecondary))
+        panel.addView(stateRow, margins(top = 10))
         panel.addView(criticalityPill(assessment), margins(top = 10))
-        panel.addView(text("Confiança ${assessment.confidence.label}", 11f, textSecondary, true), margins(top = 8))
-        panel.addView(text(assessment.reasons.joinToString("\n") { "• $it" }, 12f, textSecondary, false), margins(top = 10))
-        if (snapshot.apkPath.isNotBlank()) panel.addView(text(snapshot.apkPath, 10f, textMuted, false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) }, margins(top = 10))
-        val stateText = buildString {
-            append(if (snapshot.disabled) "Desativado" else "Ativo")
-            append(" · ").append(if (snapshot.running) "rodando" else "sem processo detectado")
-            append(" · ").append(snapshot.kind)
+
+        if (usage != null && (usage.pssKb > 0L || usage.cpuPercent > 0.0)) {
+            panel.addView(text("Consumo na última amostra", 11f, textPrimary, true), margins(top = 14))
+            panel.addView(text(resourceUsageText(usage), 16f, cyan, true), margins(top = 5))
+            panel.addView(text("RAM atribuída usa PSS por processo; CPU representa a última amostra. Serviços com sufixo :processo são somados ao app.", 10f, textMuted, false), margins(top = 4))
         }
-        panel.addView(text(stateText, 11f, if (snapshot.disabled) warning else success, true), margins(top = 10))
+        panel.addView(text("Confiança ${assessment.confidence.label}", 11f, textSecondary, true), margins(top = 12))
+        panel.addView(text(assessment.reasons.joinToString("\n") { "• $it" }, 12f, textSecondary, false), margins(top = 8))
+        if (snapshot.apkPath.isNotBlank()) panel.addView(text(snapshot.apkPath, 10f, textMuted, false).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) }, margins(top = 10))
 
         lateinit var dialog: AlertDialog
         panel.addView(primaryButton("Analisar com mais evidência") { dialog.dismiss(); inspectPackage(snapshot.packageName) }, margins(top = 16))
         val mutableAllowed = assessment.criticality != PackageCriticality.PROTECTED
         if (assessment.criticality == PackageCriticality.HIGH || assessment.criticality == PackageCriticality.UNKNOWN) {
-            panel.addView(callout("Controle avançado", "Criticidade ${assessment.criticality.label}: esta função pode ser importante, mas a decisão é sua. O comando atua somente no usuário 0, é mostrado antes da execução e o estado é verificado depois."), margins(top = 12))
+            panel.addView(callout("Controle avançado", "Criticidade ${assessment.criticality.label}: esta função pode ser importante. O comando atua somente no usuário 0, é mostrado antes da execução e o estado é verificado depois."), margins(top = 12))
         }
         if (mutableAllowed) {
             panel.addView(softButton("Parar temporariamente") { dialog.dismiss(); forceStopPackage(snapshot) }, margins(top = 8))
@@ -784,7 +819,7 @@ class PremiumOpsActivity : Activity() {
             panel.addView(softButton("Logs recentes deste app") { dialog.dismiss(); showPackageLog(snapshot.packageName) }, margins(top = 8))
             panel.addView(softButton("Abrir app na TayTech") { dialog.dismiss(); launchPackage(snapshot.packageName) }, margins(top = 8))
         } else {
-            panel.addView(callout("Núcleo protegido", "Este package pertence ao núcleo Android/ADB/hardware essencial conhecido. Aqui o CUSTOMROM evita desativação porque perder o próprio caminho de recuperação é diferente de interromper uma função automotiva reversível."), margins(top = 12))
+            panel.addView(callout("Núcleo protegido", "Este package pertence ao núcleo Android/ADB/hardware essencial conhecido. O CUSTOMROM evita desativação porque perder o caminho de recuperação é diferente de interromper uma função reversível."), margins(top = 12))
             panel.addView(softButton("Logs recentes deste app") { dialog.dismiss(); showPackageLog(snapshot.packageName) }, margins(top = 8))
         }
         panel.addView(softButton("Fechar") { dialog.dismiss() }, margins(top = 10))
@@ -1880,14 +1915,25 @@ class PremiumOpsActivity : Activity() {
         terminalRisk.setTextColor(color); terminalRisk.background = rounded(surface3, 999, color)
     }
 
-    private fun buildAppFilterText(): String = appFilter
-
-    private fun filterChip(label: String, action: () -> Unit): TextView = text(label, 10f, if (buildAppFilterText() == label) cyan else textSecondary, true).apply {
+    private fun filterChip(label: String, count: Int, selected: Boolean, action: () -> Unit): TextView = text("$label  $count", 10f, if (selected) cyan else textSecondary, true).apply {
         gravity = Gravity.CENTER
         setPadding(dp(12), dp(8), dp(12), dp(8))
-        background = rounded(if (buildAppFilterText() == label) cyanSoft else surface, 999, if (buildAppFilterText() == label) cyan else line)
-        setOnClickListener { action(); }
+        background = rounded(if (selected) cyanSoft else surface, 999, if (selected) cyan else line)
+        contentDescription = "$label, $count aplicativos" + if (selected) ", selecionado" else ""
+        setOnClickListener { action() }
         pressFeedback(this)
+    }
+
+    private fun statePill(value: String, color: Int): TextView = text(value, 9f, color, true).apply {
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(4), dp(8), dp(4))
+        background = rounded(surface3, 999, color)
+    }
+
+    private fun setAppStatus(message: String, color: Int) {
+        if (!::appStatusView.isInitialized) return
+        appStatusView.text = message
+        appStatusView.setTextColor(color)
     }
 
     private fun criticalityPill(assessment: PackageAssessment): TextView {
