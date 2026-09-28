@@ -75,6 +75,13 @@ class RemoteJobCoordinatorTest {
         val store = store()
         val observedStates = mutableListOf<RemoteJobState?>()
         val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package disabled"),
+                    ok("state=disabled")
+                )
+            ),
             onExecute = { command ->
                 if (command.startsWith("pm disable-user")) {
                     observedStates += store.get("cr-20260927-0403")?.state
