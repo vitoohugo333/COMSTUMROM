@@ -297,7 +297,7 @@ class RemoteJobCoordinator(
         transportError = outcome.transportError?.message.orEmpty(),
         previousState = previousState,
         currentState = currentState,
-        rollbackCommand = operation.rollbackCommand
+        rollbackCommand = operation.rollbackCommandFor(previousState)
     )
 
     private fun rejectedReceipt(requestId: String, reason: String): String = RemoteReceiptFormatter.format(
