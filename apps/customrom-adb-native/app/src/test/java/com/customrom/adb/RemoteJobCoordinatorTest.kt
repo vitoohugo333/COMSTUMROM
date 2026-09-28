@@ -127,6 +127,43 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun verificationThatReportsWrongFinalStateIsUncertain() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    ok("Package disabled"),
+                    ok("state=enabled")
+                )
+            )
+        )
+        val changes = mutableListOf<VerifiedRemoteChange>()
+        val coordinator = RemoteJobCoordinator(
+            config = GitHubControlConfig.defaults().copy(enabled = true),
+            registry = RemoteOperationRegistry(),
+            store = store,
+            commandPort = executor,
+            publisher = FakePublisher(),
+            onVerifiedChange = { changes += it }
+        )
+
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0411",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(3, executor.commands.size)
+        assertEquals(RemoteJobState.UNCERTAIN, store.get("cr-20260927-0411")?.state)
+        assertTrue(store.get("cr-20260927-0411")?.receipt.orEmpty().contains("state=enabled"))
+        assertTrue(changes.isEmpty())
+    }
+
+    @Test
     fun verificationTransportFailureAfterEffectIsUncertain() {
         val store = store()
         val executor = FakeCommandPort(
