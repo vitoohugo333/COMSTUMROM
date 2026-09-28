@@ -110,6 +110,40 @@ class RemoteOperationRegistryTest {
     }
 
     @Test
+    fun destructiveShellRiskCannotBeBypassedWithRepeatedWhitespace() {
+        val resolved = registry.resolve(
+            RemoteJob(
+                schema = CustomromJobContract.SCHEMA,
+                requestId = "cr-20260927-0298",
+                target = "taytech-primary",
+                mode = RemoteJobMode.SHELL,
+                command = "pm   uninstall com.spotify.music",
+                timeoutSeconds = 60,
+                allowChanges = true
+            )
+        )
+
+        assertEquals("VERMELHO", resolved.risk)
+    }
+
+    @Test
+    fun clearingApplicationDataIsRedNotReversibleYellow() {
+        val resolved = registry.resolve(
+            RemoteJob(
+                schema = CustomromJobContract.SCHEMA,
+                requestId = "cr-20260927-0299",
+                target = "taytech-primary",
+                mode = RemoteJobMode.SHELL,
+                command = "pm clear com.spotify.music",
+                timeoutSeconds = 60,
+                allowChanges = true
+            )
+        )
+
+        assertEquals("VERMELHO", resolved.risk)
+    }
+
+    @Test
     fun recipeRunUsesExistingRecipeAndLocalRisk() {
         val recipes = listOf(
             PremiumRecipe("cpu-known", "CPU conhecida", "VERDE", "top -n 1", "cpu.txt")
