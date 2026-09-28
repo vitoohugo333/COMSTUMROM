@@ -63,7 +63,7 @@ class RemoteOperationRegistry(
     private fun resolveShell(job: RemoteJob): ResolvedRemoteOperation {
         val command = job.command.trim()
         require(command.isNotEmpty()) { "Shell command is empty" }
-        val risk = PremiumSafetyPolicy.classify(command)
+        val risk = classifyRemoteShell(command)
         return ResolvedRemoteOperation(
             title = "Terminal remoto",
             command = command,
@@ -71,6 +71,17 @@ class RemoteOperationRegistry(
             effectful = risk != "VERDE",
             requiresAllowChanges = risk == "AMARELO"
         )
+    }
+
+    private fun classifyRemoteShell(command: String): String {
+        val localRisk = PremiumSafetyPolicy.classify(command)
+        if (localRisk != "VERDE") return localRisk
+
+        val normalized = command.trim().lowercase()
+        val clearlyReadOnly = REMOTE_READ_ONLY_PREFIXES.any { prefix ->
+            normalized == prefix || normalized.startsWith("$prefix ")
+        }
+        return if (clearlyReadOnly) "VERDE" else "AMARELO"
     }
 
     private fun resolveAction(job: RemoteJob): ResolvedRemoteOperation = when (job.action) {
@@ -241,5 +252,25 @@ class RemoteOperationRegistry(
 
     companion object {
         private val PACKAGE_PATTERN = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
+        private val REMOTE_READ_ONLY_PREFIXES = listOf(
+            "getprop",
+            "dumpsys",
+            "cat",
+            "ps",
+            "top",
+            "df",
+            "du",
+            "ls",
+            "stat",
+            "readlink",
+            "pidof",
+            "logcat",
+            "settings get",
+            "pm list",
+            "pm path",
+            "cmd package list",
+            "cmd package resolve-activity",
+            "cmd package query-activities"
+        )
     }
 }
