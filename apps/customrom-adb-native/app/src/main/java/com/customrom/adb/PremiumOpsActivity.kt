@@ -791,6 +791,7 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun cancelActiveOperation() {
+        if (!ensureNoRemoteJob()) return
         val task = activeTask ?: return
         adb.cancel(task)
         activeTask = null
@@ -961,6 +962,7 @@ class PremiumOpsActivity : Activity() {
 
 
     private fun installCustomromAgent() {
+        if (!ensureNoRemoteJob()) return
         if (activeTask?.isDone == false) {
             toast("Já existe uma operação em andamento")
             return
@@ -974,6 +976,7 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun installCustomromAgentNow() {
+        if (!ensureNoRemoteJob()) return
         val assetName = "CUSTOMROM-Agent-TayTech-debug.apk"
         val apk = File(cacheDir, assetName)
         try {
@@ -1035,6 +1038,12 @@ class PremiumOpsActivity : Activity() {
         }
     }
 
+    private fun ensureNoRemoteJob(): Boolean {
+        if (remoteOperationGate.canStartLocal()) return true
+        toast("Existe uma operação remota em andamento")
+        return false
+    }
+
     private fun executeNow(
         title: String,
         command: String,
@@ -1042,10 +1051,7 @@ class PremiumOpsActivity : Activity() {
         showDialog: Boolean,
         callback: (RemoteShellOutcome, HumanOperationResult) -> Unit
     ) {
-        if (!remoteOperationGate.canStartLocal()) {
-            toast("Existe uma operação remota em andamento")
-            return
-        }
+        if (!ensureNoRemoteJob()) return
         if (activeTask?.isDone == false) {
             toast("Já existe uma operação em andamento")
             return
@@ -1401,6 +1407,7 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun showConnectionDialog() {
+        if (!ensureNoRemoteJob()) return
         val host = input("IP da TayTech", adb.savedHost(), false)
         val port = input("Porta", adb.savedPort().toString(), true)
         val pairPort = input("Porta de pareamento", "", true)
@@ -1412,16 +1419,26 @@ class PremiumOpsActivity : Activity() {
         lateinit var dialog: AlertDialog
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row.addView(primaryButton("Conectar") {
+            if (!ensureNoRemoteJob()) return@primaryButton
             val h = host.text.toString().trim(); val p = port.text.toString().toIntOrNull()
             if (h.isBlank() || p == null) toast("Informe IP e porta") else { adb.connect(h, p, "manual"); dialog.dismiss() }
         }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { rightMargin = dp(8) })
-        row.addView(softButton("Reconectar") { adb.autoReconnect(force = true); dialog.dismiss() }, LinearLayout.LayoutParams(0, dp(46), 1f))
+        row.addView(softButton("Reconectar") {
+            if (!ensureNoRemoteJob()) return@softButton
+            adb.autoReconnect(force = true)
+            dialog.dismiss()
+        }, LinearLayout.LayoutParams(0, dp(46), 1f))
         panel.addView(row, margins(top = 10))
-        panel.addView(softButton("Descobrir automaticamente") { adb.restartMdns(); dialog.dismiss() }, margins(top = 8))
+        panel.addView(softButton("Descobrir automaticamente") {
+            if (!ensureNoRemoteJob()) return@softButton
+            adb.restartMdns()
+            dialog.dismiss()
+        }, margins(top = 8))
         panel.addView(divider(), margins(top = 16, bottom = 16, height = 1))
         panel.addView(text("Parear por código", 15f, textPrimary, true))
         panel.addView(pairPort, margins(top = 8)); panel.addView(pairCode, margins(top = 8))
         panel.addView(primaryButton("Parear") {
+            if (!ensureNoRemoteJob()) return@primaryButton
             val h = host.text.toString().trim(); val p = pairPort.text.toString().toIntOrNull(); val code = pairCode.text.toString().trim()
             if (h.isBlank() || p == null || code.length < 6) toast("Informe IP, porta e código") else {
                 adb.pair(h, p, code) { ok, message -> toast(message); if (ok) dialog.dismiss() }
