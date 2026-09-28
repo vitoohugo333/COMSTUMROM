@@ -5,13 +5,18 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class IssueJobStore(private val file: File) {
+    @Volatile private var unreadable = false
+
     init {
         recoverInterrupted()
     }
 
     @Synchronized
     fun check(requestId: String, digest: String): ReplayDecision {
-        val current = get(requestId) ?: return ReplayDecision.NEW
+        if (unreadable) return ReplayDecision.UNCERTAIN
+        val current = get(requestId)
+        if (unreadable) return ReplayDecision.UNCERTAIN
+        if (current == null) return ReplayDecision.NEW
         if (current.digest != digest) return ReplayDecision.CONFLICT
         return when (current.state) {
             RemoteJobState.COMPLETED,
@@ -88,14 +93,16 @@ class IssueJobStore(private val file: File) {
     }
 
     private fun upsert(record: StoredRemoteJob) {
+        check(!unreadable) { "Remote job store is unreadable; refusing to overwrite replay evidence" }
         val records = readAll().filterNot { it.requestId == record.requestId }.toMutableList()
+        check(!unreadable) { "Remote job store is unreadable; refusing to overwrite replay evidence" }
         records += record
         writeAll(records.takeLast(500))
     }
 
     private fun readAll(): List<StoredRemoteJob> {
         if (!file.isFile) return emptyList()
-        return runCatching {
+        return try {
             val array = JSONArray(file.readText(Charsets.UTF_8))
             buildList {
                 for (index in 0 until array.length()) {
@@ -112,7 +119,10 @@ class IssueJobStore(private val file: File) {
                     )
                 }
             }
-        }.getOrDefault(emptyList())
+        } catch (_: Throwable) {
+            unreadable = true
+            emptyList()
+        }
     }
 
     private fun writeAll(records: List<StoredRemoteJob>) {
