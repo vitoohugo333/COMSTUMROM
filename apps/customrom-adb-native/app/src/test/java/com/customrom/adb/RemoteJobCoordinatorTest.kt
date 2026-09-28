@@ -197,6 +197,37 @@ class RemoteJobCoordinatorTest {
     }
 
     @Test
+    fun effectfulNonZeroExitIsUncertainBecausePartialEffectCannotBeExcluded() {
+        val store = store()
+        val executor = FakeCommandPort(
+            outcomes = ArrayDeque(
+                listOf(
+                    ok("state=enabled"),
+                    RemoteShellOutcome(
+                        stdout = "first sub-command may have changed state",
+                        stderr = "second sub-command failed",
+                        exitCode = 1,
+                        durationMs = 25,
+                        transportError = null
+                    )
+                )
+            )
+        )
+        val coordinator = coordinator(store, executor, FakePublisher())
+
+        coordinator.handle(
+            actionIssue(
+                requestId = "cr-20260927-0495",
+                action = "package.disable",
+                args = """{"package":"com.spotify.music"}""",
+                allowChanges = true
+            )
+        )
+
+        assertEquals(RemoteJobState.UNCERTAIN, store.get("cr-20260927-0495")?.state)
+    }
+
+    @Test
     fun receiptFailureDoesNotReplayAdbAndNextPollRetriesOnlyReceipt() {
         val store = store()
         val executor = FakeCommandPort()
