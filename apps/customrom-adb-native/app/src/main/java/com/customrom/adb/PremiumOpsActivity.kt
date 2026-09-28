@@ -1059,8 +1059,12 @@ class PremiumOpsActivity : Activity() {
 
     private fun runTerminal() {
         val command = terminalInput.text.toString().trim()
-        if (command.isEmpty()) return
+        if (command.isEmpty()) {
+            terminalOutput.text = "Digite um comando antes de executar."
+            return
+        }
         val risk = PremiumSafetyPolicy.classify(command)
+        terminalOutput.text = "Recebido · preparando execução na TayTech…"
         executeOperation("Terminal livre", command, risk, showDialog = false) { outcome, result ->
             terminalOutput.text = buildString {
                 append(result.title).append('\n')
@@ -1094,6 +1098,7 @@ class PremiumOpsActivity : Activity() {
                 val report = FunctionalActionEngine.analyze(recipe.id, raw)
                 if (::diagnosticSummaryView.isInitialized) {
                     diagnosticSummaryView.text = report.summary
+                    diagnosticSummaryView.setTextColor(success)
                     diagnosticRawView.text = raw.take(18000)
                     diagnosticRawView.visibility = View.GONE
                     renderDiagnosticActions(report)
@@ -1102,6 +1107,7 @@ class PremiumOpsActivity : Activity() {
             } else {
                 if (::diagnosticSummaryView.isInitialized) {
                     diagnosticSummaryView.text = "${result.title}: ${result.detail.take(260)}"
+                    diagnosticSummaryView.setTextColor(danger)
                     diagnosticRawView.text = raw.take(18000)
                     diagnosticRawView.visibility = View.GONE
                     diagnosticActionsHost.removeAllViews()
@@ -1246,6 +1252,7 @@ class PremiumOpsActivity : Activity() {
     private fun installCustomromAgent() {
         if (!ensureNoRemoteJob()) return
         if (activeTask?.isDone == false) {
+            renderOperation(HumanOperationResult(OperationPhase.QUEUED, "Ação aguardando", "Já existe uma operação em andamento. Termine ou interrompa a atual antes de iniciar outra.", "local_gate=busy", false))
             toast("Já existe uma operação em andamento")
             return
         }
@@ -1322,6 +1329,7 @@ class PremiumOpsActivity : Activity() {
 
     private fun ensureNoRemoteJob(): Boolean {
         if (remoteOperationGate.canStartLocal()) return true
+        renderOperation(HumanOperationResult(OperationPhase.QUEUED, "Console remoto em uso", "Existe uma missão remota em andamento. A ação local não foi executada para evitar concorrência sobre a TayTech.", "remote_gate=busy", false))
         toast("Existe uma operação remota em andamento")
         return false
     }
@@ -1340,7 +1348,7 @@ class PremiumOpsActivity : Activity() {
         }
         val running = OperationPresenter.running(title)
         renderOperation(running)
-        if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = false
+        setTerminalBusy(true)
         activeTask = adb.execute(command) { outcome ->
             val result = if (outcome.transportError != null) {
                 OperationPresenter.transportError(title, outcome.transportError.message ?: outcome.transportError::class.java.simpleName, outcome.durationMs)
@@ -1352,7 +1360,7 @@ class PremiumOpsActivity : Activity() {
             latestHumanResult = result
             renderOperation(result)
             appendExecution(title, command, risk, outcome)
-            if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = true
+            setTerminalBusy(false)
             callback(outcome, result)
             if (showDialog) showTechnicalResult(result, lastRawOutput)
         }
@@ -1372,8 +1380,17 @@ class PremiumOpsActivity : Activity() {
         latestHumanResult = result
         if (!::operationBanner.isInitialized) return
         operationBanner.visibility = View.VISIBLE
-        operationTitle.text = result.title
-        operationDetail.text = result.detail.take(260)
+        val phaseLabel = when (result.phase) {
+            OperationPhase.RUNNING -> "↻ EXECUTANDO"
+            OperationPhase.QUEUED -> "◌ AGUARDANDO"
+            OperationPhase.SUCCESS_WITH_OUTPUT, OperationPhase.SUCCESS_EMPTY -> "✓ CONCLUÍDO"
+            OperationPhase.COMMAND_ERROR, OperationPhase.TRANSPORT_ERROR -> "× FALHA"
+            OperationPhase.CANCELLED -> "! INTERROMPIDO"
+            else -> "ESTADO"
+        }
+        operationTitle.text = "$phaseLabel · ${result.title}"
+        val terminalPhase = result.phase in setOf(OperationPhase.SUCCESS_WITH_OUTPUT, OperationPhase.SUCCESS_EMPTY, OperationPhase.COMMAND_ERROR, OperationPhase.TRANSPORT_ERROR, OperationPhase.CANCELLED)
+        operationDetail.text = result.detail.take(if (terminalPhase) 215 else 250) + if (terminalPhase) " · toque para detalhes" else ""
         val color = when (result.phase) {
             OperationPhase.SUCCESS_WITH_OUTPUT, OperationPhase.SUCCESS_EMPTY -> success
             OperationPhase.COMMAND_ERROR, OperationPhase.TRANSPORT_ERROR -> danger
@@ -1431,11 +1448,11 @@ class PremiumOpsActivity : Activity() {
 
         val config = remoteControlConfig()
         if (!config.enabled) {
-            renderRemoteStatus("REMOTO OFF", "Controle remoto desativado", textMuted)
+            renderRemoteStatus("CONSOLE OFF", "Controle remoto desativado", textMuted)
             return
         }
         if (!remoteCredentials.hasToken()) {
-            renderRemoteStatus("REMOTO !", "Credencial GitHub necessária", warning)
+            renderRemoteStatus("CONSOLE !", "Credencial GitHub necessária", warning)
             return
         }
 
@@ -1486,14 +1503,12 @@ class PremiumOpsActivity : Activity() {
         ): Boolean {
             if (activeTask?.isDone == false) return false
             val risk = PremiumSafetyPolicy.classify(command)
-            runOnUiThread {
-                if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = false
-            }
+            runOnUiThread { setTerminalBusy(true, "Remoto em execução") }
             activeTask = adb.execute(command, timeoutMs) { outcome ->
                 activeTask = null
                 lastRawOutput = combineRaw(outcome)
                 appendExecution("Remoto", command, risk, outcome)
-                if (::terminalRunButton.isInitialized) terminalRunButton.isEnabled = true
+                setTerminalBusy(false)
                 remoteCoordinatorExecutor.execute { callback(outcome) }
             }
             return true
@@ -1668,7 +1683,7 @@ class PremiumOpsActivity : Activity() {
                 prefs.edit().putBoolean("remote_control_enabled", false).apply()
                 remoteReceiver?.close()
                 remoteReceiver = null
-                renderRemoteStatus("REMOTO OFF", "Controle remoto desativado", textMuted)
+                renderRemoteStatus("CONSOLE OFF", "Controle remoto desativado", textMuted)
                 dialog.dismiss()
             },
             LinearLayout.LayoutParams(0, dp(48), 1f)
@@ -1680,7 +1695,7 @@ class PremiumOpsActivity : Activity() {
                 prefs.edit().putBoolean("remote_control_enabled", false).apply()
                 remoteReceiver?.close()
                 remoteReceiver = null
-                renderRemoteStatus("REMOTO OFF", "Credencial removida", textMuted)
+                renderRemoteStatus("CONSOLE OFF", "Credencial removida", textMuted)
                 toast("Credencial removida")
                 dialog.dismiss()
             },
@@ -1945,6 +1960,17 @@ class PremiumOpsActivity : Activity() {
         terminalRisk.setTextColor(color); terminalRisk.background = rounded(surface3, 999, color)
     }
 
+    private fun setTerminalBusy(busy: Boolean, busyLabel: String = "Executando…") {
+        if (!::terminalRunButton.isInitialized) return
+        terminalRunButton.isEnabled = !busy
+        terminalRunButton.text = if (busy) busyLabel else "Executar"
+        terminalRunButton.alpha = if (busy) 0.72f else 1f
+        if (::terminalInput.isInitialized) terminalInput.isEnabled = !busy
+        if (busy && ::terminalOutput.isInitialized && currentScreen == "terminal") {
+            terminalOutput.text = "$busyLabel\nA TayTech está processando o comando. O resultado aparecerá aqui quando a operação terminar."
+        }
+    }
+
     private fun filterChip(label: String, count: Int, selected: Boolean, action: () -> Unit): TextView = text("$label  $count", 10f, if (selected) cyan else textSecondary, true).apply {
         gravity = Gravity.CENTER
         setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -2065,11 +2091,19 @@ class PremiumOpsActivity : Activity() {
     }
 
     private fun pressFeedback(view: View) {
-        view.isClickable = true; view.isFocusable = true
+        view.isClickable = true
+        view.isFocusable = true
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { v.alpha = 0.72f; v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.alpha = 1f
+                MotionEvent.ACTION_DOWN -> {
+                    v.animate().cancel()
+                    v.animate().alpha(0.78f).scaleX(0.985f).scaleY(0.985f).setDuration(55L).start()
+                    v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().cancel()
+                    v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(85L).start()
+                }
             }
             false
         }
