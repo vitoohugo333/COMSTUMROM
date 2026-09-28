@@ -260,7 +260,12 @@ class RemoteJobCoordinator(
 
     private fun reject(issue: RemoteGitHubIssue, job: RemoteJob, digest: String, reason: String): RemoteHandleResult {
         store.markClaimed(job, digest, effectful = false)
-        val receipt = rejectedReceipt(job.requestId, reason)
+        val receipt = rejectedReceipt(
+            requestId = job.requestId,
+            reason = reason,
+            sessionId = job.sessionId,
+            sequence = job.sequence
+        )
         store.markTerminal(job.requestId, RemoteJobState.REJECTED, receipt)
         onState(RemoteJobState.REJECTED, reason)
         store.get(job.requestId)?.let { publishStoredReceipt(issue, it) }
@@ -335,9 +340,16 @@ class RemoteJobCoordinator(
     private fun displayTitle(job: RemoteJob, title: String): String =
         if (job.sessionId.isBlank()) title else title + " · " + job.sessionId + " #" + job.sequence
 
-    private fun rejectedReceipt(requestId: String, reason: String): String = RemoteReceiptFormatter.format(
+    private fun rejectedReceipt(
+        requestId: String,
+        reason: String,
+        sessionId: String = "",
+        sequence: Long = 0L
+    ): String = RemoteReceiptFormatter.format(
         RemoteReceiptData(
             requestId = requestId,
+            sessionId = sessionId,
+            sequence = sequence,
             title = "Operação remota rejeitada",
             state = RemoteJobState.REJECTED,
             risk = "VERMELHO",

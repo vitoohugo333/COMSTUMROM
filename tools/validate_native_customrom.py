@@ -150,6 +150,7 @@ REQUIRED_REMOTE_UI_SIGNALS = [
     "private fun recordVerifiedRemoteChange",
     "RemoteConsoleSessionStore",
     "GPT → GitHub → S23 → ADB → TayTech",
+    "CONSOLE ●",
     "Remoto",
 ]
 

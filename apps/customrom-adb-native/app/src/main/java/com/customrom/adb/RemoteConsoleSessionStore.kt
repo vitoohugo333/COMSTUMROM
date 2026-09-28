@@ -47,11 +47,7 @@ class RemoteConsoleSessionStore(private val file: File) {
         if (unreadable) throw IllegalStateException("Remote console session store is unreadable")
         val current = records.lastOrNull { it.sessionId == sessionId }
         val last = current?.lastDeliveredSequence ?: 0L
-        if (sequence < last) return
-        if (sequence == last) {
-            if (current?.lastRequestId == requestId) return
-            throw IllegalStateException("Session sequence already delivered by another request")
-        }
+        if (sequence <= last) return
         require(sequence == last + 1L) {
             "Cannot deliver session sequence out of order: expected " + (last + 1L) + ", got " + sequence
         }
@@ -63,7 +59,7 @@ class RemoteConsoleSessionStore(private val file: File) {
         )
         val updated = records.filterNot { it.sessionId == sessionId }.toMutableList()
         updated += next
-        writeAll(updated.takeLast(200))
+        writeAll(updated)
     }
 
     private fun readAll(): List<RemoteConsoleSessionState> {

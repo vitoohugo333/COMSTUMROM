@@ -1238,7 +1238,7 @@ class PremiumOpsActivity : Activity() {
         runOnUiThread {
             when (state) {
                 RemoteJobState.RECEIVED, RemoteJobState.CLAIMED -> {
-                    renderRemoteStatus("REMOTO ◌", "Pedido recebido", warning)
+                    renderRemoteStatus("CONSOLE ◌", "Pedido recebido", warning)
                     renderOperation(
                         HumanOperationResult(
                             OperationPhase.QUEUED,
@@ -1250,11 +1250,11 @@ class PremiumOpsActivity : Activity() {
                     )
                 }
                 RemoteJobState.RUNNING -> {
-                    renderRemoteStatus("REMOTO ↻", "Executando na TayTech", warning)
+                    renderRemoteStatus("CONSOLE ↻", "Executando na TayTech", warning)
                     renderOperation(OperationPresenter.running("Remoto · $title"))
                 }
                 RemoteJobState.COMPLETED -> {
-                    renderRemoteStatus("REMOTO ●", "Último pedido concluído", success)
+                    renderRemoteStatus("CONSOLE ●", "Último pedido concluído", success)
                     renderOperation(
                         HumanOperationResult(
                             OperationPhase.SUCCESS_EMPTY,
@@ -1266,7 +1266,7 @@ class PremiumOpsActivity : Activity() {
                     )
                 }
                 RemoteJobState.FAILED -> {
-                    renderRemoteStatus("REMOTO !", "Último pedido falhou", danger)
+                    renderRemoteStatus("CONSOLE !", "Último pedido falhou", danger)
                     renderOperation(
                         HumanOperationResult(
                             OperationPhase.COMMAND_ERROR,
@@ -1278,7 +1278,7 @@ class PremiumOpsActivity : Activity() {
                     )
                 }
                 RemoteJobState.REJECTED -> {
-                    renderRemoteStatus("REMOTO ×", "Pedido bloqueado pela segurança", danger)
+                    renderRemoteStatus("CONSOLE ×", "Pedido bloqueado pela segurança", danger)
                     renderOperation(
                         HumanOperationResult(
                             OperationPhase.COMMAND_ERROR,
@@ -1290,7 +1290,7 @@ class PremiumOpsActivity : Activity() {
                     )
                 }
                 RemoteJobState.UNCERTAIN -> {
-                    renderRemoteStatus("REMOTO !", "Estado final precisa ser conferido", warning)
+                    renderRemoteStatus("CONSOLE !", "Estado final precisa ser conferido", warning)
                     renderOperation(
                         HumanOperationResult(
                             OperationPhase.CANCELLED,
@@ -1308,10 +1308,10 @@ class PremiumOpsActivity : Activity() {
     private fun renderRemoteTransportState(state: String) {
         val lower = state.lowercase(Locale.ROOT)
         when {
-            "falha" in lower || "erro" in lower -> renderRemoteStatus("REMOTO !", state, danger)
-            "verificando" in lower -> renderRemoteStatus("REMOTO ◌", "Verificando pedidos", cyan)
-            "parado" in lower -> renderRemoteStatus("REMOTO OFF", "Controle remoto parado", textMuted)
-            else -> renderRemoteStatus("REMOTO ●", state.removePrefix("Remoto · ").take(80), success)
+            "falha" in lower || "erro" in lower -> renderRemoteStatus("CONSOLE !", state, danger)
+            "verificando" in lower -> renderRemoteStatus("CONSOLE ◌", "Verificando pedidos", cyan)
+            "parado" in lower -> renderRemoteStatus("CONSOLE OFF", "Controle remoto parado", textMuted)
+            else -> renderRemoteStatus("CONSOLE ●", state.removePrefix("Remoto · ").take(80), success)
         }
     }
 
