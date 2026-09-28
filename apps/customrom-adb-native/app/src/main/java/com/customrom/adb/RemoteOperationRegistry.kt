@@ -10,12 +10,28 @@ data class ResolvedRemoteOperation(
     val verificationCommand: String = "",
     val rollbackCommand: String = "",
     val verificationMustContain: List<String> = emptyList(),
-    val verificationMustBeBlank: Boolean = false
+    val verificationMustBeBlank: Boolean = false,
+    val rollbackFromAnimationState: Boolean = false
 ) {
     fun verificationSatisfied(stdout: String): Boolean {
         val observed = stdout.trim()
         if (verificationMustBeBlank && observed.isNotEmpty()) return false
         return verificationMustContain.all { required -> observed.contains(required) }
+    }
+
+    fun rollbackCommandFor(previousState: String): String {
+        if (rollbackCommand.isNotBlank()) return rollbackCommand
+        if (!rollbackFromAnimationState) return ""
+
+        val values = Regex("(?m)^(window|transition|animator)=([0-9]+(?:\\.[0-9]+)?)$")
+            .findAll(previousState.trim())
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        val window = values["window"] ?: return ""
+        val transition = values["transition"] ?: return ""
+        val animator = values["animator"] ?: return ""
+        return "settings put global window_animation_scale $window; " +
+            "settings put global transition_animation_scale $transition; " +
+            "settings put global animator_duration_scale $animator"
     }
 }
 
@@ -117,7 +133,8 @@ class RemoteOperationRegistry(
                     "window=$value",
                     "transition=$value",
                     "animator=$value"
-                )
+                ),
+                rollbackFromAnimationState = true
             )
         }
         "recipe.run" -> {
@@ -153,7 +170,8 @@ class RemoteOperationRegistry(
         verification: String = "",
         rollback: String = "",
         verificationMustContain: List<String> = emptyList(),
-        verificationMustBeBlank: Boolean = false
+        verificationMustBeBlank: Boolean = false,
+        rollbackFromAnimationState: Boolean = false
     ): ResolvedRemoteOperation {
         val localRisk = PremiumSafetyPolicy.classify(command)
         require(localRisk != "VERMELHO") { "Operation classified RED locally" }
@@ -167,7 +185,8 @@ class RemoteOperationRegistry(
             verificationCommand = verification,
             rollbackCommand = rollback,
             verificationMustContain = verificationMustContain,
-            verificationMustBeBlank = verificationMustBeBlank
+            verificationMustBeBlank = verificationMustBeBlank,
+            rollbackFromAnimationState = rollbackFromAnimationState
         )
     }
 
