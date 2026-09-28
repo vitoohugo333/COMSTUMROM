@@ -51,6 +51,31 @@ class RemoteOperationRegistryTest {
     }
 
     @Test
+    fun remoteDisableRejectsOwnerCriticalAndCorePackages() {
+        val protectedPackages = listOf(
+            "com.omegas.v7.test",
+            "ginlemon.flowerfree",
+            "com.android.systemui",
+            "com.android.settings",
+            "com.jancar.canbus",
+            "com.jancar.launcher"
+        )
+
+        protectedPackages.forEach { pkg ->
+            val attempt = runCatching {
+                registry.resolve(
+                    action(
+                        "package.disable",
+                        mapOf("package" to pkg),
+                        allowChanges = true
+                    )
+                )
+            }
+            assertTrue("Expected remote disable rejection for $pkg", attempt.isFailure)
+        }
+    }
+
+    @Test
     fun packageEnableRemainsAvailableForRecovery() {
         val resolved = registry.resolve(action("package.enable", mapOf("package" to "com.jancar.canbus"), allowChanges = true))
 
