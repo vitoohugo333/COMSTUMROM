@@ -7,8 +7,8 @@
   "apk": "",
   "apk_sha256": "",
   "source_branch": "refactor/customrom-adb-s23-premium",
-  "source_commit": "d086495e92b61c99ecf0083e604e9d4c510ef779",
-  "run_id": 36361799436,
-  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36361799436",
-  "built_at_utc": "2026-09-28T00:22:03Z"
+  "source_commit": "b72b9acfb50942d8728beecc05a74fd83164041b",
+  "run_id": 36362140304,
+  "run_url": "https://github.com/vitoohugo333/COMSTUMROM/actions/runs/36362140304",
+  "built_at_utc": "2026-09-28T00:27:37Z"
 }
