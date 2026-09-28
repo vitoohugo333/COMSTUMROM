@@ -145,6 +145,9 @@ object PremiumSafetyPolicy {
     private val stdoutRedirection = Regex("""(?<!\d)>{1,2}\s*(/[^\s;&|]+)""")
     private val teeRedirection = Regex("""\btee(?:\s+-a)?\s+(/[^\s;&|]+)""")
     private val protectedWritePrefixes = listOf("/dev/", "/sys/", "/proc/sys/")
+    private val protectedMutationWords = setOf(
+        "set", "write", "send", "inject", "transmit", "tx", "control", "actuate"
+    )
 
     fun classify(command: String): String {
         val collapsed = command
@@ -162,7 +165,11 @@ object PremiumSafetyPolicy {
 
         val touchesProtectedSurface = protectedPackageTokens.any { normalized.contains(it) }
         val disruptsProtectedSurface = protectedDisruptionTokens.any { normalized.contains(it) }
-        if (touchesProtectedSurface && disruptsProtectedSurface) return "VERMELHO"
+        val commandWords = collapsed.split(' ').map { token ->
+            token.trim('"', '\'', ';', '|', '&', '(', ')').trimStart('-').substringBefore('=')
+        }
+        val usesProtectedMutationVerb = commandWords.any(protectedMutationWords::contains)
+        if (touchesProtectedSurface && (disruptsProtectedSurface || usesProtectedMutationVerb)) return "VERMELHO"
 
         if (writeTarget != null && writeTarget != "/dev/null") return "AMARELO"
         if (reversibleTokens.any { normalized.contains(it) }) return "AMARELO"
