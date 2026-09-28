@@ -39,6 +39,17 @@ class RemoteSafetyRegressionTest {
     }
 
     @Test
+    fun readOnlyPrefixCannotHideUnknownMutationBehindShellComposition() {
+        val registry = RemoteOperationRegistry()
+
+        val chained = registry.resolve(shellJob("dumpsys package com.spotify.music; vendorctl mutate-widget 1"))
+        val substituted = registry.resolve(shellJob("dumpsys package $(vendorctl mutate-widget 1)"))
+
+        assertEquals("AMARELO", chained.risk)
+        assertEquals("AMARELO", substituted.risk)
+    }
+
+    @Test
     fun automotiveVendorMutationVerbIsRedEvenWithoutKnownAndroidPrimitive() {
         val registry = RemoteOperationRegistry()
 
